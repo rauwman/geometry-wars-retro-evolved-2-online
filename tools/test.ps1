@@ -6,7 +6,7 @@
   the window fit and the achievement summary), tests\launcher_settings_tests.cpp (the settings model, the PLAY gate,
   the Display, Graphics and Gameplay options), tests\window_host_tests.cpp (the window title, the frame-rate
   format and the sampler), tests\cheats_tests.cpp (the cheat settings, the in-game menu model and the host
-  hotkeys) and tests\user_data_tests.cpp (the portable user_data root and the move of the system
+  hotkeys), tests\online_tests.cpp (the friends leaderboard client, over a fake transport) and tests\user_data_tests.cpp (the portable user_data root and the move of the system
   folder into it), with Visual Studio's clang++, then checks that the release folder check refuses user data and
   saves (scratch folders only). No game files and no ReXGlue runtime are needed. The
   launcher tests need TRG Launcher: third_party\trg-launcher, or the folder named by GW2_TRG_LAUNCHER_DIR.
@@ -28,6 +28,7 @@ $FrameLimiterExe = Join-Path $OutDir 'frame_limiter_tests.exe'
 $PlacementExe = Join-Path $OutDir 'launcher_placement_tests.exe'
 $UserDataExe = Join-Path $OutDir 'user_data_tests.exe'
 $CheatsExe = Join-Path $OutDir 'cheats_tests.exe'
+$OnlineExe = Join-Path $OutDir 'online_tests.exe'
 
 $TrgDir = Join-Path $Root 'third_party\trg-launcher'
 if (-not (Test-Path (Join-Path $TrgDir 'src\settings.cpp'))) {
@@ -93,6 +94,9 @@ try {
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
         (Join-Path $Root 'tests\cheats_tests.cpp') -o $CheatsExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
+    & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
+        (Join-Path $Root 'tests\online_tests.cpp') (Join-Path $Root 'src\online_client.cpp') -o $OnlineExe
+    if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
 } finally {
     foreach ($name in @([Environment]::GetEnvironmentVariables().Keys)) {
         if (-not $SavedEnv.Contains($name)) { Remove-Item "Env:$name" }
@@ -120,6 +124,8 @@ if ($LASTEXITCODE) { throw "Launcher settings tests failed ($LASTEXITCODE)" }
 if ($LASTEXITCODE) { throw "User data tests failed ($LASTEXITCODE)" }
 & $CheatsExe
 if ($LASTEXITCODE) { throw "Cheats tests failed ($LASTEXITCODE)" }
+& $OnlineExe
+if ($LASTEXITCODE) { throw "Online tests failed ($LASTEXITCODE)" }
 
 # The release check accepts a fresh extraction and refuses user data, migration leftovers, saves, logs and game files.
 $ReleaseCheck = Join-Path $PSScriptRoot 'package-release.ps1'

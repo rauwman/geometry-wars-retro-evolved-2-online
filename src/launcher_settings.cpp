@@ -39,6 +39,10 @@ constexpr ManagedSetting kManagedSettings[] = {
     {cheats::kInvincibleKey, ValueKind::kBool},
     {cheats::kInfiniteShieldKey, ValueKind::kBool},
     {cheats::kInfiniteBombsKey, ValueKind::kBool},
+    {kOnlineUrlKey, ValueKind::kString},
+    {kOnlineInviteKey, ValueKind::kString},
+    {kOnlineNameKey, ValueKind::kString},
+    {kOnlineTokenKey, ValueKind::kString},
     {kLauncherXKey, ValueKind::kInt},
     {kLauncherYKey, ValueKind::kInt},
     {kLauncherWidthKey, ValueKind::kInt},
@@ -51,6 +55,8 @@ constexpr std::string_view kWindowKeys[] = {kWindowWidthKey, kWindowHeightKey, k
 
 constexpr std::string_view kPlacementKeys[] = {kLauncherXKey, kLauncherYKey, kLauncherWidthKey, kLauncherHeightKey,
                                                 kLauncherMaximizedKey, kLauncherFullscreenKey};
+
+constexpr std::string_view kOnlineKeys[] = {kOnlineUrlKey, kOnlineInviteKey, kOnlineNameKey, kOnlineTokenKey};
 
 constexpr char kPlayerFileHeader[] =
     "# Geometry Wars: Retro Evolved 2 player settings, written by the launcher.\n"
@@ -115,6 +121,15 @@ bool IsWindowSetting(std::string_view key) {
 bool IsLauncherPlacementSetting(std::string_view key) {
   for (const std::string_view placement_key : kPlacementKeys) {
     if (placement_key == key) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool IsOnlineIdentitySetting(std::string_view key) {
+  for (const std::string_view online_key : kOnlineKeys) {
+    if (online_key == key) {
       return true;
     }
   }
@@ -224,7 +239,7 @@ bool GameSettings::Save() {
 void GameSettings::ResetToDefaults() {
   for (const ManagedSetting& setting : kManagedSettings) {
     const std::string key(setting.key);
-    if (IsLauncherPlacementSetting(key)) {
+    if (IsLauncherPlacementSetting(key) || IsOnlineIdentitySetting(key)) {
       continue;
     }
     if (const auto shipped = shipped_.find(key); shipped != shipped_.end()) {

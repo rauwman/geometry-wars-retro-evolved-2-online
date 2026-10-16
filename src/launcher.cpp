@@ -28,6 +28,7 @@
 #include "frame_limiter.h"
 #include "game_files.h"
 #include "launcher_achievements.h"
+#include "launcher_online.h"
 #include "launcher_options.h"
 #include "launcher_placement.h"
 #include "launcher_play.h"
@@ -155,6 +156,7 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
       : ImGuiDialog(drawer),
         paths_(std::move(paths)),
         settings_(settings),
+        online_(settings),
         game_(game),
         callbacks_(std::move(callbacks)),
         monitors_(ListMonitors()) {
@@ -176,6 +178,7 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
       return;
     }
     PollInstall();
+    online_.Poll();
     TrackPlacement();
     if (!nav_taken_) {
       saved_nav_flags_ = io.ConfigFlags & kNavFlags;
@@ -400,6 +403,8 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
         return {name, "Controller and keyboard.", [this](trg::Ui& ui) { PageControls(ui); }, nullptr};
       case PageId::kCheats:
         return {name, "Optional gameplay modifiers", [this](trg::Ui& ui) { PageCheats(ui); }, nullptr};
+      case PageId::kOnline:
+        return {name, "Your name on the friends leaderboard.", [this](trg::Ui& ui) { online_.Draw(ui); }, nullptr};
       case PageId::kAchievements:
         return {name, "Your achievements on this PC.", [this](trg::Ui& ui) { PageAchievements(ui); }, nullptr};
       case PageId::kAbout:
@@ -681,6 +686,7 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
 
   LauncherPaths paths_;
   GameSettings& settings_;
+  OnlinePage online_;
   LauncherGameContext game_;
   LauncherCallbacks callbacks_;
   GameFileState files_ = GameFileState::kMissing;

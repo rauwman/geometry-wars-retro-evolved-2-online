@@ -342,9 +342,9 @@ void TestHookWiring() {
   CHECK(hooked.count("sub_8204F288") == 1);
   CHECK(hooked.count("sub_8204E988") == 0);
 
-  CHECK(Count(hooks, "Enabled(Cheat::Invincible)") >= 1);
-  CHECK(Count(hooks, "Enabled(Cheat::InfiniteShield)") == 1);
-  CHECK(Count(hooks, "Enabled(Cheat::InfiniteBombs)") == 1);
+  CHECK(Count(hooks, "EnabledInGame(Cheat::Invincible)") >= 1);
+  CHECK(Count(hooks, "EnabledInGame(Cheat::InfiniteShield)") == 1);
+  CHECK(Count(hooks, "EnabledInGame(Cheat::InfiniteBombs)") == 1);
   CHECK(hooks.find("REXCVAR_GET") == std::string::npos);
   for (const char* untouched : {"achievement", "Achievement", "live_stats", "local_stats", "leaderboard", "score"}) {
     CHECK(hooks.find(untouched) == std::string::npos);

@@ -424,7 +424,26 @@ static void TestScoreWrites() {
         "several views are parsed in order");
 }
 
+static void TestBestAllAndName() {
+  const fs::path root = FreshRoot("best_all");
+  LocalStats stats(root / "stats.toml");
+  stats.Load();
+  Check(stats.BestAll(7).empty(), "no scores, nothing listed");
+  stats.Record(7, 1, 500);
+  stats.Record(7, 3, 20);
+  stats.Record(7, 1, 400);
+  stats.Record(8, 1, 999);
+  const auto all = stats.BestAll(7);
+  Check(all.size() == 2 && all.at(1) == 500 && all.at(3) == 20, "BestAll lists the best of every view for one user");
+
+  LocalLeaderboard board(stats, {7, "User"});
+  board.SetUserName("Yann R");
+  const StatsView view = board.Ranked(1, 1, 5);
+  Check(view.rows.size() == 1 && view.rows[0].gamertag == "Yann R", "rows carry the online name once it is set");
+}
+
 int main() {
+  TestBestAllAndName();
   TestLocalStats();
   TestCorruptAndEdited();
   TestConcurrency();

@@ -37,6 +37,12 @@ bool Enabled(Cheat cheat);
 // Never writes the saved settings.
 void ToggleForSession(Cheat cheat);
 
+// The same as Enabled, for the game's own hooks: an enabled cheat that the game consults counts as used.
+bool EnabledInGame(Cheat cheat);
+// Whether a cheat was in effect since the last call, or is enabled now. The next score is then not a clean one.
+// Sticky between calls, so toggling a cheat off again does not clear it.
+bool TakeUsed();
+
 // What the in-game menu changed. It only records differences from the saved value, so the saved value is
 // never altered and a cheat toggled back follows the saved value again.
 class SessionCheats {

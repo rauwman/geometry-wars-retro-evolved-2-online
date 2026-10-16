@@ -11,3 +11,8 @@ window_width = 1280
 window_height = 720
 video_mode_width = 1280
 video_mode_height = 720
+
+# Friends leaderboard (docs/online.md). A release for friends sets the server address and invite code here; players
+# then pick their online name in the launcher's Online page. Empty means the game stays fully offline.
+gw2_online_url = ""
+gw2_online_invite = ""

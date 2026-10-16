@@ -134,6 +134,12 @@ std::optional<int64_t> LocalStats::Best(uint64_t xuid, uint32_t view) const {
   return score->second;
 }
 
+std::map<uint32_t, int64_t> LocalStats::BestAll(uint64_t xuid) const {
+  std::lock_guard lock(mutex_);
+  const auto user = best_.find(xuid);
+  return user == best_.end() ? std::map<uint32_t, int64_t>() : user->second;
+}
+
 RecordResult LocalStats::Record(uint64_t xuid, uint32_t view, int64_t score) {
   if (score <= 0 || view >= kMaxViews) return RecordResult::kUnchanged;
   std::lock_guard lock(mutex_);

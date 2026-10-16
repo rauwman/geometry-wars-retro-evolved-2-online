@@ -1,5 +1,7 @@
 #include "cheats.h"
 
+#include <atomic>
+
 #include <rex/cvar.h>
 
 REXCVAR_DEFINE_BOOL(gw2_cheat_invincible, gw2::cheats::kCheatDefault, "Geometry Wars/Cheats", "Invincible");
@@ -11,6 +13,7 @@ namespace gw2::cheats {
 namespace {
 
 SessionCheats g_session;
+std::atomic<bool> g_used{false};
 
 bool SavedValue(Cheat cheat) {
   switch (cheat) {
@@ -28,6 +31,20 @@ bool SavedValue(Cheat cheat) {
 
 bool Enabled(Cheat cheat) {
   return g_session.Effective(cheat, SavedValue(cheat));
+}
+
+bool EnabledInGame(Cheat cheat) {
+  const bool on = Enabled(cheat);
+  if (on) g_used.store(true, std::memory_order_relaxed);
+  return on;
+}
+
+bool TakeUsed() {
+  bool used = g_used.exchange(false, std::memory_order_relaxed);
+  for (const CheatInfo& info : kCheats) {
+    used = Enabled(info.cheat) || used;
+  }
+  return used;
 }
 
 void ToggleForSession(Cheat cheat) {

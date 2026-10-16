@@ -9,7 +9,9 @@
 #include <rex/logging.h>
 
 #include "achievements_overlay_rules.h"
+#include "cheats.h"
 #include "guest_memory.h"
+#include "online_client.h"
 
 REXCVAR_DEFINE_BOOL(gw2_local_live, true, "Geometry Wars",
                     "Serve the game's Xbox Live scores and leaderboards from a local file; nothing goes online")
@@ -25,9 +27,12 @@ constexpr uint32_t kInputStateGamepadSize = 12;
 constexpr uint32_t kThumbLeftYOffset = 6;
 
 struct Services {
-  Services(std::filesystem::path file, LocalUser user) : stats(std::move(file)), board(stats, std::move(user)) {}
+  Services(std::filesystem::path file, std::filesystem::path online_file, LocalUser user)
+      : stats(std::move(file)), clean(std::move(online_file)), board(stats, std::move(user)) {}
 
   LocalStats stats;
+  LocalStats clean;  // the scores the server may see: none earned with a cheat in effect
+  std::atomic<online::OnlineClient*> client{nullptr};  // set once by ConfigureOnline, never freed
   LocalLeaderboard board;
   EnumeratorRegistry enumerators;
 };
@@ -87,13 +92,36 @@ void Install(InstallParams params) {
     REXLOG_INFO("Local Live services are disabled (gw2_local_live=false)");
     return;
   }
-  auto* services = new Services(std::move(params.stats_file), std::move(params.user));
+  auto* services =
+      new Services(std::move(params.stats_file), std::move(params.online_scores_file), std::move(params.user));
   const LoadResult loaded = services->stats.Load();
   REXLOG_INFO("Local Live services ready, stats file {}",
               loaded == LoadResult::kLoaded    ? "loaded"
               : loaded == LoadResult::kMissing ? "not created yet"
                                                : "was corrupt");
   g_services.store(services, std::memory_order_release);
+}
+
+void ConfigureOnline(const OnlineParams& params) {
+  Services* services = Active();
+  if (!services) return;
+  if (!params.name.empty()) services->board.SetUserName(params.name);
+  if (params.token.empty()) return;
+  const std::string url = online::NormalizeBaseUrl(params.url);
+  if (url.empty()) {
+    REXLOG_WARN("Online: the server address is not usable, scores stay on this PC");
+    return;
+  }
+  const uint64_t xuid = services->board.user().xuid;
+  // Scores from before the account existed carry no record of cheats; they are taken once, as they are.
+  if (services->clean.Load() == LoadResult::kMissing) {
+    for (const auto& [view, score] : services->stats.BestAll(xuid)) services->clean.Record(xuid, view, score);
+  }
+  auto* client = new online::OnlineClient(
+      {url, params.token}, online::MakeSystemTransport(), [services, xuid] { return services->clean.BestAll(xuid); },
+      [](const std::string& line) { REXLOG_INFO("Online: {}", line); });
+  services->client.store(client, std::memory_order_release);
+  REXLOG_INFO("Online: signed in as \"{}\"", params.name);
 }
 
 void SetAchievementsModal(bool modal) {
@@ -136,11 +164,20 @@ REX_HOOK_RAW(sub_820E88F8) {
   if (!services || !Succeeded(ctx, base, overlapped)) return;
   if (xuid != services->board.user().xuid) return;
 
+  // Asked once per finished game, so a cheat used in this game keeps this score off the server.
+  const bool cheated = cheats::TakeUsed();
+  online::OnlineClient* client = services->client.load(std::memory_order_acquire);
+  bool clean_changed = false;
   for (const ScoreWrite& write : ParseScoreWrites(base, views, view_count)) {
     if (services->stats.Record(xuid, write.view, write.score) == RecordResult::kNotSaved) {
       REXLOG_WARN("New best score in view {} kept in memory: the stats file could not be written", write.view);
     }
+    if (client && !cheated && services->clean.Record(xuid, write.view, write.score) != RecordResult::kUnchanged) {
+      clean_changed = true;
+    }
   }
+  if (client && cheated) REXLOG_INFO("Online: a cheat was in use, this score stays on this PC");
+  if (clean_changed) client->ScoresChanged();
 }
 
 // XUserCreateStatsEnumeratorByRank / ByXuid: ReXGlue only stubs the underlying call.

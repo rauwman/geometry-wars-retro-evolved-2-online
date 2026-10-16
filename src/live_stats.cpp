@@ -21,7 +21,12 @@ constexpr size_t kGamertagSize = 16;
 StatsRow LocalLeaderboard::Row(uint32_t view) const {
   const auto score = stats_.Best(user_.xuid, view);
   const bool scored = score && *score > 0;
-  return {user_.xuid, scored ? 1u : 0u, scored ? *score : 0, user_.name};
+  std::string name;
+  {
+    std::lock_guard lock(name_mutex_);
+    name = user_.name;
+  }
+  return {user_.xuid, scored ? 1u : 0u, scored ? *score : 0, std::move(name)};
 }
 
 StatsView LocalLeaderboard::Ranked(uint32_t view, uint32_t first_rank, uint32_t max_rows) const {

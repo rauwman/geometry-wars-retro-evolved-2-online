@@ -42,6 +42,13 @@ inline constexpr char kLauncherFullscreenKey[] = "gw2_launcher_fullscreen";
 inline constexpr char kShowFrameCounterKey[] = "gw2_show_frame_counter";
 inline constexpr bool kShowFrameCounterDefault = false;
 
+// The friends leaderboard account. The address and invite code come with the release; the name and token are made
+// by the launcher's Online page. Reset to defaults leaves all four alone.
+inline constexpr char kOnlineUrlKey[] = "gw2_online_url";
+inline constexpr char kOnlineInviteKey[] = "gw2_online_invite";
+inline constexpr char kOnlineNameKey[] = "gw2_online_name";
+inline constexpr char kOnlineTokenKey[] = "gw2_online_token";
+
 using Values = std::map<std::string, std::string, std::less<>>;
 
 enum class ValueKind { kBool, kInt, kString };
@@ -59,6 +66,9 @@ bool IsWindowSetting(std::string_view key);
 
 // The launcher window's own placement, kept apart from the game's window settings and from Reset.
 bool IsLauncherPlacementSetting(std::string_view key);
+
+// The online account settings, which Reset to defaults keeps.
+bool IsOnlineIdentitySetting(std::string_view key);
 
 std::filesystem::path LauncherSettingsPath(const std::filesystem::path& user_data_root);
 

@@ -186,6 +186,9 @@ class GeometryWarsRetroEvolved2App : public rex::ReXApp {
     if (!profile) return;
     gw2::live::Install({
         .stats_file = gw2::StatsFilePath(std::filesystem::absolute(user_data_root()), kernel->title_id()),
+        .online_scores_file =
+            gw2::StatsFilePath(std::filesystem::absolute(user_data_root()), kernel->title_id()).parent_path() /
+            "online_scores.toml",
         .user = {profile->xuid(), profile->name()},
         .bridge = {
             .open_achievements = [this] { app_context().CallInUIThreadDeferred([this] { OpenAchievements(); }); },
@@ -234,6 +237,8 @@ class GeometryWarsRetroEvolved2App : public rex::ReXApp {
   // The cheat menu exists only once the game starts, so F10 does nothing over the launcher or the installer.
   void StartGame() {
     gw2::LogGameSettings();
+    gw2::live::ConfigureOnline({settings_->Get(gw2::kOnlineUrlKey), settings_->Get(gw2::kOnlineTokenKey),
+                                settings_->Get(gw2::kOnlineNameKey)});
     InstallCheatMenu();
     ReXApp::LaunchModule();
   }

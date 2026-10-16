@@ -35,6 +35,8 @@ std::string_view PageName(PageId page) {
       return "Controls";
     case PageId::kCheats:
       return "Cheats";
+    case PageId::kOnline:
+      return "Online";
     case PageId::kAchievements:
       return "Achievements";
     case PageId::kAbout:

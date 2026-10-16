@@ -51,6 +51,11 @@ class LocalLeaderboard {
   LocalLeaderboard(const LocalStats& stats, LocalUser user) : stats_(stats), user_(std::move(user)) {}
 
   const LocalUser& user() const { return user_; }
+  // The name rows carry. Set once before the game starts; safe against a concurrent read.
+  void SetUserName(std::string name) {
+    std::lock_guard lock(name_mutex_);
+    user_.name = std::move(name);
+  }
 
   StatsView Ranked(uint32_t view, uint32_t first_rank, uint32_t max_rows) const;
   StatsView Around(uint32_t view, uint64_t xuid, uint32_t max_rows) const;
@@ -62,6 +67,7 @@ class LocalLeaderboard {
 
   const LocalStats& stats_;
   LocalUser user_;
+  mutable std::mutex name_mutex_;
 };
 
 struct StatsQuery {
