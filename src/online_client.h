@@ -37,12 +37,14 @@ struct HttpRequest {
   std::string body;  // JSON, empty for none
   std::string bearer;
   int timeout_ms = 8000;
+  std::string if_none_match;  // an ETag from an earlier answer, empty for none
 };
 
 struct HttpResponse {
   int status = 0;  // 0: no answer at all (see error)
   std::string body;
   std::string error;
+  std::string etag;  // the answer's ETag header, when it has one
 };
 
 class HttpTransport {
@@ -139,8 +141,9 @@ class OnlineClient {
   using Snapshot = std::function<std::map<uint32_t, int64_t>()>;
   using Log = std::function<void(const std::string&)>;
 
+  // `on_uploaded` runs on the worker thread after every upload the server accepted.
   OnlineClient(ClientConfig config, std::unique_ptr<HttpTransport> transport, Snapshot snapshot, Log log,
-               ClientTiming timing = {});
+               ClientTiming timing = {}, std::function<void()> on_uploaded = {});
   ~OnlineClient();
   OnlineClient(const OnlineClient&) = delete;
   OnlineClient& operator=(const OnlineClient&) = delete;
@@ -159,6 +162,7 @@ class OnlineClient {
   Snapshot snapshot_;
   Log log_;
   ClientTiming timing_;
+  std::function<void()> on_uploaded_;
 
   mutable std::mutex mutex_;
   std::condition_variable wake_;

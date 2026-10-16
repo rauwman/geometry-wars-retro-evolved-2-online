@@ -160,13 +160,14 @@ uint32_t CreateEnumerator(uint8_t* base, EnumeratorRegistry& registry, StatsQuer
   query.views = ReadSpecViews(base, specs, spec_count);
   const uint32_t handle = registry.Add(std::move(query));
 
-  StoreBE32(base, size_ptr, kResultsHeaderSize + (kViewSize + kRowSize) * spec_count);
+  const uint32_t rows = std::clamp<uint32_t>(max_rows, 1, kMaxEnumeratedRows);
+  StoreBE32(base, size_ptr, kResultsHeaderSize + (kViewSize + kRowSize * rows) * spec_count);
   StoreBE32(base, handle_ptr, handle);
   if (handle_out) *handle_out = handle;
   return kErrorSuccess;
 }
 
-uint32_t ServeEnumeration(uint8_t* base, const LocalLeaderboard& board, const StatsQuery& query, uint32_t buffer,
+uint32_t ServeEnumeration(uint8_t* base, const BoardSource& board, const StatsQuery& query, uint32_t buffer,
                           uint32_t size, uint32_t items_ptr, uint32_t overlapped) {
   std::vector<StatsView> views;
   for (const uint32_t view : query.views) {
@@ -182,7 +183,7 @@ uint32_t ServeEnumeration(uint8_t* base, const LocalLeaderboard& board, const St
   return kErrorIoPending;
 }
 
-bool ServeReadStats(uint8_t* base, const LocalLeaderboard& board, uint32_t xuid_count, uint32_t xuids,
+bool ServeReadStats(uint8_t* base, const BoardSource& board, uint32_t xuid_count, uint32_t xuids,
                     uint32_t spec_count, uint32_t specs, uint32_t size, uint32_t results) {
   if (!results || !specs || spec_count > kMaxSpecs) return false;
   std::vector<uint64_t> requested;

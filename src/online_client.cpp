@@ -408,12 +408,13 @@ UploadResult PostScores(HttpTransport& transport, const std::string& base_url, c
 }
 
 OnlineClient::OnlineClient(ClientConfig config, std::unique_ptr<HttpTransport> transport, Snapshot snapshot, Log log,
-                           ClientTiming timing)
+                           ClientTiming timing, std::function<void()> on_uploaded)
     : config_(std::move(config)),
       transport_(std::move(transport)),
       snapshot_(std::move(snapshot)),
       log_(std::move(log)),
-      timing_(timing) {
+      timing_(timing),
+      on_uploaded_(std::move(on_uploaded)) {
   worker_ = std::thread([this] { Run(); });
 }
 
@@ -460,6 +461,7 @@ void OnlineClient::Run() {
     std::string why;
     const UploadResult result =
         scores.empty() ? UploadResult::kOk : PostScores(*transport_, config_.url, config_.token, scores, &why);
+    if (result == UploadResult::kOk && !scores.empty() && on_uploaded_) on_uploaded_();
 
     lock.lock();
     if (result == UploadResult::kOk) {

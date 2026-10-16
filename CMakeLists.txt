@@ -53,6 +53,7 @@ set(GW2_SOURCES
     src/gpu_fence_wait.cpp
     src/live_stats.cpp
     src/local_stats.cpp
+    src/online_board.cpp
     src/online_client.cpp
     src/online_http.cpp
     src/game_files.cpp
@@ -183,6 +184,8 @@ endif()
 
 gw2_add_test(live_tests src/local_stats.cpp src/live_stats.cpp)
 gw2_add_test(online_tests src/online_client.cpp)
+gw2_add_test(online_board_tests src/online_board.cpp src/online_client.cpp src/live_stats.cpp src/local_stats.cpp)
+gw2_add_test(profile_name_tests)
 gw2_add_test(achievements_overlay_rules_tests)
 gw2_add_test(launcher_tests src/game_files.cpp src/stfs.cpp src/launcher_achievements.cpp)
 gw2_add_test(window_host_tests)

@@ -36,5 +36,11 @@ network addresses, for testing.
 
 ## What the game shows
 
-The launcher sets the name the game shows for the local player. Showing other players' rows inside the game's own
-leaderboard screens is a later step; the server's website shows the full board.
+- **Leaderboards:** the game's own leaderboard screens list your friends, ranked per mode, with you under your name.
+  The boards come from the server in the background (at start, when a leaderboard is opened, after each upload and
+  every 30 seconds); the screen never waits for the network. Without a connection the game shows your own scores, as
+  offline.
+- **Your name:** the name shown under the menus and in the leaderboards is your online name. This replaces the
+  runtime's fixed profile name "User" in memory only; saves and settings are untouched.
+- **Your own row** shows the better of the server's score and your clean best on this PC, so a new score appears at once,
+  before the upload has finished.

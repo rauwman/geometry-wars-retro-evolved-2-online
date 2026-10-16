@@ -286,7 +286,14 @@ static void TestEnumerators() {
   Check(CreateEnumerator(m.base(), registry, StatsQuery::Kind::kRanked, 1, 10, 3, 0x2000, size_ptr, handle_ptr,
                          &handle) == kErrorSuccess,
         "create succeeds");
-  Check(m.U32(size_ptr) == 8 + 64 * 3, "buffer size negotiation: header plus a view and a row per spec");
+  Check(m.U32(size_ptr) == 8 + (16 + 48 * 10) * 3, "buffer size negotiation: header plus a view and the asked rows per spec");
+  {
+    EnumeratorRegistry sizes;
+    CreateEnumerator(m.base(), sizes, StatsQuery::Kind::kRanked, 1, 0, 1, 0x2000, 0x3100, 0x3104);
+    Check(m.U32(0x3100) == 8 + 64, "no rows asked still leaves room for one");
+    CreateEnumerator(m.base(), sizes, StatsQuery::Kind::kRanked, 1, 100000, 1, 0x2000, 0x3100, 0x3104);
+    Check(m.U32(0x3100) == 8 + 16 + 48 * kMaxEnumeratedRows, "the rows are capped");
+  }
   Check(m.U32(handle_ptr) == handle && (handle & 0xFF000000) == EnumeratorRegistry::kHandleBase &&
             (handle & 0xFF000000) != 0xF8000000,
         "the handle is in the port's range, away from runtime handles");
@@ -318,7 +325,7 @@ static void TestServe() {
   EnumeratorRegistry registry;
   m.PutSpecs(0x2000, {1});
   uint32_t handle = 0;
-  CreateEnumerator(m.base(), registry, StatsQuery::Kind::kRanked, 1, 10, 1, 0x2000, 0x3000, 0x3004, &handle);
+  CreateEnumerator(m.base(), registry, StatsQuery::Kind::kRanked, 1, 1, 1, 0x2000, 0x3000, 0x3004, &handle);
   const uint32_t cb = m.U32(0x3000);
   const StatsQuery query = *registry.Take(handle);
 

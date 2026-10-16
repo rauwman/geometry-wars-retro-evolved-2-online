@@ -23,6 +23,8 @@ constexpr uint32_t kViewSize = 16;
 constexpr uint32_t kRowSize = 48;
 constexpr uint32_t kSpecSize = 136;
 constexpr uint32_t kMaxSpecs = 64;
+// Rows per view an enumeration may return; the buffer size handed to the game follows the rows it asks for.
+constexpr uint32_t kMaxEnumeratedRows = 100;
 
 // The only property the game writes: X_PROPERTY_SCORE, a 64-bit integer.
 constexpr uint32_t kScorePropertyId = 0x20000001;
@@ -45,22 +47,32 @@ struct StatsView {
   std::vector<StatsRow> rows;
 };
 
+// Where the game's leaderboard queries are answered from.
+class BoardSource {
+ public:
+  virtual ~BoardSource() = default;
+  virtual const LocalUser& user() const = 0;
+  virtual StatsView Ranked(uint32_t view, uint32_t first_rank, uint32_t max_rows) const = 0;
+  virtual StatsView Around(uint32_t view, uint64_t xuid, uint32_t max_rows) const = 0;
+  virtual StatsView Selected(uint32_t view, const std::vector<uint64_t>& xuids) const = 0;
+};
+
 // What an offline console knows: the local player's best score in each view and nobody else.
-class LocalLeaderboard {
+class LocalLeaderboard final : public BoardSource {
  public:
   LocalLeaderboard(const LocalStats& stats, LocalUser user) : stats_(stats), user_(std::move(user)) {}
 
-  const LocalUser& user() const { return user_; }
+  const LocalUser& user() const override { return user_; }
   // The name rows carry. Set once before the game starts; safe against a concurrent read.
   void SetUserName(std::string name) {
     std::lock_guard lock(name_mutex_);
     user_.name = std::move(name);
   }
 
-  StatsView Ranked(uint32_t view, uint32_t first_rank, uint32_t max_rows) const;
-  StatsView Around(uint32_t view, uint64_t xuid, uint32_t max_rows) const;
+  StatsView Ranked(uint32_t view, uint32_t first_rank, uint32_t max_rows) const override;
+  StatsView Around(uint32_t view, uint64_t xuid, uint32_t max_rows) const override;
   // A row for the local player when it is asked for, scored or not.
-  StatsView Selected(uint32_t view, const std::vector<uint64_t>& xuids) const;
+  StatsView Selected(uint32_t view, const std::vector<uint64_t>& xuids) const override;
 
  private:
   StatsRow Row(uint32_t view) const;
@@ -117,11 +129,11 @@ uint32_t CreateEnumerator(uint8_t* base, EnumeratorRegistry& registry, StatsQuer
 
 // XamEnumerate on a registered handle: fills the results and completes the overlapped like the
 // console does (the call returns IO_PENDING once the overlapped carries the result).
-uint32_t ServeEnumeration(uint8_t* base, const LocalLeaderboard& board, const StatsQuery& query, uint32_t buffer,
+uint32_t ServeEnumeration(uint8_t* base, const BoardSource& board, const StatsQuery& query, uint32_t buffer,
                           uint32_t size, uint32_t items_ptr, uint32_t overlapped);
 
 // XUserReadStats: fills the results buffer. False when it is missing or too small.
-bool ServeReadStats(uint8_t* base, const LocalLeaderboard& board, uint32_t xuid_count, uint32_t xuids,
+bool ServeReadStats(uint8_t* base, const BoardSource& board, uint32_t xuid_count, uint32_t xuids,
                     uint32_t spec_count, uint32_t specs, uint32_t size, uint32_t results);
 
 }  // namespace gw2::live

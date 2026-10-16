@@ -86,6 +86,7 @@ class WinHttpTransport final : public HttpTransport {
     std::wstring headers = L"Accept: application/json\r\n";
     if (!request.body.empty()) headers += L"Content-Type: application/json\r\n";
     if (!request.bearer.empty()) headers += L"Authorization: Bearer " + Widen(request.bearer) + L"\r\n";
+    if (!request.if_none_match.empty()) headers += L"If-None-Match: " + Widen(request.if_none_match) + L"\r\n";
 
     void* body = request.body.empty() ? WINHTTP_NO_REQUEST_DATA : const_cast<char*>(request.body.data());
     const DWORD body_size = static_cast<DWORD>(request.body.size());
@@ -101,6 +102,14 @@ class WinHttpTransport final : public HttpTransport {
       return Fail(out);
     }
     out.status = static_cast<int>(status);
+
+    wchar_t etag[128] = {};
+    DWORD etag_size = sizeof(etag) - sizeof(wchar_t);
+    if (WinHttpQueryHeaders(http.get(), WINHTTP_QUERY_ETAG, WINHTTP_HEADER_NAME_BY_INDEX, etag, &etag_size,
+                            WINHTTP_NO_HEADER_INDEX)) {
+      out.etag.reserve(etag_size / sizeof(wchar_t));
+      for (DWORD i = 0; i < etag_size / sizeof(wchar_t); ++i) out.etag += static_cast<char>(etag[i] & 0x7F);
+    }
 
     for (;;) {
       DWORD available = 0;

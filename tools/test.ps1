@@ -29,6 +29,8 @@ $PlacementExe = Join-Path $OutDir 'launcher_placement_tests.exe'
 $UserDataExe = Join-Path $OutDir 'user_data_tests.exe'
 $CheatsExe = Join-Path $OutDir 'cheats_tests.exe'
 $OnlineExe = Join-Path $OutDir 'online_tests.exe'
+$OnlineBoardExe = Join-Path $OutDir 'online_board_tests.exe'
+$ProfileNameExe = Join-Path $OutDir 'profile_name_tests.exe'
 
 $TrgDir = Join-Path $Root 'third_party\trg-launcher'
 if (-not (Test-Path (Join-Path $TrgDir 'src\settings.cpp'))) {
@@ -97,6 +99,14 @@ try {
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
         (Join-Path $Root 'tests\online_tests.cpp') (Join-Path $Root 'src\online_client.cpp') -o $OnlineExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
+    & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
+        (Join-Path $Root 'tests\online_board_tests.cpp') (Join-Path $Root 'src\online_board.cpp') `
+        (Join-Path $Root 'src\online_client.cpp') (Join-Path $Root 'src\live_stats.cpp') `
+        (Join-Path $Root 'src\local_stats.cpp') -o $OnlineBoardExe
+    if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
+    & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
+        (Join-Path $Root 'tests\profile_name_tests.cpp') -o $ProfileNameExe
+    if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
 } finally {
     foreach ($name in @([Environment]::GetEnvironmentVariables().Keys)) {
         if (-not $SavedEnv.Contains($name)) { Remove-Item "Env:$name" }
@@ -126,6 +136,10 @@ if ($LASTEXITCODE) { throw "User data tests failed ($LASTEXITCODE)" }
 if ($LASTEXITCODE) { throw "Cheats tests failed ($LASTEXITCODE)" }
 & $OnlineExe
 if ($LASTEXITCODE) { throw "Online tests failed ($LASTEXITCODE)" }
+& $OnlineBoardExe
+if ($LASTEXITCODE) { throw "Online board tests failed ($LASTEXITCODE)" }
+& $ProfileNameExe
+if ($LASTEXITCODE) { throw "Profile name tests failed ($LASTEXITCODE)" }
 
 # The release check accepts a fresh extraction and refuses user data, migration leftovers, saves, logs and game files.
 $ReleaseCheck = Join-Path $PSScriptRoot 'package-release.ps1'
