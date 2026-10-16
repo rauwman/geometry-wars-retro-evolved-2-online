@@ -37,6 +37,7 @@ network addresses, for testing.
 ## What the game shows
 
 - **Leaderboards:** the game's own leaderboard screens list your friends, ranked per mode, with you under your name.
+  The "Overall" and "My score" filters show everyone on the server. The "Friends" filter shows only you: the game builds it from its own friend list, which is empty in this port.
   The boards come from the server in the background (at start, when a leaderboard is opened, after each upload and
   every 30 seconds); the screen never waits for the network. Without a connection the game shows your own scores, as
   offline.
