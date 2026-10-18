@@ -110,6 +110,7 @@ if ($VerifyOnly) {
 $cmake = Get-Content (Join-Path $Root 'CMakeLists.txt') -Raw
 if ($cmake -notmatch '(?m)^\s*project\(\s*geometry_wars_retro_evolved_2\s+VERSION\s+(\d+\.\d+\.\d+)') { throw 'Project VERSION not found in CMakeLists.txt' }
 $Version = $Matches[1]
+if ($cmake -match '(?m)^\s*set\(GW2_VERSION_SUFFIX\s+"([^"]*)"\)') { $Version += $Matches[1] }
 # The fork's own version, set(GW2_MOD_VERSION "0.1.0"): GeometryWarsRetroEvolved2-v0.3.1-windows-x64-modded-v0.1.0.
 if ($cmake -notmatch '(?m)^\s*set\(\s*GW2_MOD_VERSION\s+"(\d+\.\d+\.\d+)"\s*\)') { throw 'set(GW2_MOD_VERSION "x.y.z") not found in CMakeLists.txt' }
 $ModVersion = $Matches[1]

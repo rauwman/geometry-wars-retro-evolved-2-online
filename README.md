@@ -29,7 +29,7 @@ A server is **not** included and not hosted for you: someone you know has to run
 
 ## Download
 
-**GeometryWarsRetroEvolved2-v0.3.1-windows-x64-modded-v0.1.0.zip** from the [latest release](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/releases/latest). The version is upstream's (v0.3.1) with the fork's own version (`modded-v0.1.0`) appended.
+**GeometryWarsRetroEvolved2-v0.4.0-windows-x64-modded-v0.1.1.zip** from the [latest release](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/releases/latest). The version is upstream's (v0.4.0) with the fork's own version (`modded-v0.1.1`) appended.
 
 You need Windows 10 or 11 (64-bit), a DirectX 12 graphics card and **your own Geometry Wars: Retro Evolved 2 Xbox Live Arcade package**. Extract the ZIP, run `geometry_wars_retro_evolved_2.exe` and install the game from your package on the launcher's **Play** page. The exact game version, launcher pages, saves and troubleshooting are in the [full manual](docs/manual.md).
 
