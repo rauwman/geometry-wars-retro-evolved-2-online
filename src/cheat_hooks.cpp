@@ -10,7 +10,7 @@
 namespace {
 
 using gw2::cheats::Cheat;
-using gw2::cheats::Enabled;
+using gw2::cheats::EnabledInGame;
 
 float LoadFloat(const uint8_t* base, uint32_t addr) {
   return std::bit_cast<float>(gw2::LoadBE32(base, addr));
@@ -30,7 +30,7 @@ bool IsPlayer(const uint8_t* base, uint32_t object) {
 REX_EXTERN(__imp__sub_8204FF00);
 REX_HOOK_RAW(sub_8204FF00) {
   const uint32_t player = ctx.r3.u32;
-  const bool infinite = IsPlayer(base, player) && Enabled(Cheat::InfiniteShield);
+  const bool infinite = IsPlayer(base, player) && EnabledInGame(Cheat::InfiniteShield);
   __imp__sub_8204FF00(ctx, base);
   if (!infinite) {
     return;
@@ -48,7 +48,7 @@ REX_EXTERN(__imp__sub_8204EEA8);
 REX_HOOK_RAW(sub_8204EEA8) {
   const uint32_t player = ctx.r3.u32;
   if (IsPlayer(base, player) &&
-      gw2::cheats::SuppressesHit(Enabled(Cheat::Invincible), LoadFloat(base, player + gw2::cheats::kPlayerBombGraceOffset),
+      gw2::cheats::SuppressesHit(EnabledInGame(Cheat::Invincible), LoadFloat(base, player + gw2::cheats::kPlayerBombGraceOffset),
                                  LoadFloat(base, player + gw2::cheats::kPlayerShieldOffset))) {
     return;
   }
@@ -62,7 +62,7 @@ REX_HOOK_RAW(sub_8204F288) {
   const uint32_t counter =
       IsPlayer(base, player) ? gw2::cheats::BombCountAddress(gw2::LoadBE32(base, player + gw2::cheats::kPlayerIndexOffset))
                              : 0;
-  const bool infinite = counter != 0 && Enabled(Cheat::InfiniteBombs);
+  const bool infinite = counter != 0 && EnabledInGame(Cheat::InfiniteBombs);
   const uint32_t before = infinite ? gw2::LoadBE32(base, counter) : 0;
   __imp__sub_8204F288(ctx, base);
   if (infinite && gw2::cheats::BombWasConsumed(before, gw2::LoadBE32(base, counter))) {

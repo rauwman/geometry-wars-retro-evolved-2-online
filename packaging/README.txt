@@ -5,7 +5,7 @@ Geometry Wars: Retro Evolved 2 for Xbox Live Arcade, statically recompiled to
 run natively on Windows with the ReXGlue SDK.
 
 Source code and issue tracker:
-https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled
+https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled
 
 
 NO GAME FILES ARE INCLUDED
@@ -59,6 +59,18 @@ alone. If the program folder cannot be written to, the old Documents folder is
 used for that run.
 
 
+FRIENDS LEADERBOARD (OPTIONAL)
+------------------------------
+If someone you know runs a leaderboard server for this port, they give you its
+address and an invite code. Open the Online page in the launcher, enter both
+(Paste buttons are there), pick a name and press "Create online name". Your best
+scores are then uploaded when a game ends, and the game's leaderboard screens
+show you and your friends. Cheated games are never uploaded.
+Before you delete or reinstall the game, press "Copy account key" on the Online
+page and keep the key somewhere private: with it you get your name back
+("Restore account"). Without a server address the game stays fully offline.
+
+
 WINDOWS SMARTSCREEN
 -------------------
 The first time you run geometry_wars_retro_evolved_2.exe, Windows SmartScreen
@@ -83,8 +95,9 @@ PLAYING
 - F10 opens the Cheats menu (Invincible, Infinite Shield, Infinite Bombs). All
   are Off by default. Choices made in the menu last for the current session;
   the launcher's Cheats page saves them.
-- Scores, leaderboards and achievements are kept on this PC only. There is no
-  Xbox Live connection and no online play.
+- Scores, leaderboards and achievements are kept on this PC. There is no Xbox
+  Live connection and no online play. Optionally, the Online page in the
+  launcher joins a friends leaderboard (see below).
 - To open the launcher again after turning it off, hold Shift while starting.
 
 
@@ -103,7 +116,7 @@ deleting the old folder deletes "user_data" with it.
 
 If the game does not start or crashes, please attach the newest file from the
 "logs" folder to a report at
-https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/issues
+https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/issues
 
 
 LICENSE

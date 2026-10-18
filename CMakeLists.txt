@@ -2,6 +2,8 @@
 
 cmake_minimum_required(VERSION 3.25)
 project(geometry_wars_retro_evolved_2 VERSION 0.3.1 LANGUAGES C CXX)
+# This fork's own version (the mod). A release is named <upstream version>-modded-v<this>, e.g. v0.3.1-modded-v0.1.0. Read by tools\package-release.ps1.
+set(GW2_MOD_VERSION "0.1.0")
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -53,6 +55,9 @@ set(GW2_SOURCES
     src/gpu_fence_wait.cpp
     src/live_stats.cpp
     src/local_stats.cpp
+    src/online_board.cpp
+    src/online_client.cpp
+    src/online_http.cpp
     src/game_files.cpp
     src/stfs.cpp
     src/frame_counter.cpp
@@ -61,6 +66,7 @@ set(GW2_SOURCES
     src/launcher.cpp
     src/launcher_achievements.cpp
     src/launcher_cvars.cpp
+    src/launcher_online.cpp
     src/launcher_options.cpp
     src/launcher_platform.cpp
     src/launcher_settings.cpp
@@ -83,7 +89,7 @@ endif()
 rexglue_setup_target(geometry_wars_retro_evolved_2 GPU_PLUGINS xenos)
 target_link_libraries(geometry_wars_retro_evolved_2 PRIVATE trg::launcher)
 if(WIN32)
-    target_link_libraries(geometry_wars_retro_evolved_2 PRIVATE bcrypt shcore synchronization)
+    target_link_libraries(geometry_wars_retro_evolved_2 PRIVATE bcrypt shcore synchronization winhttp)
 else()
     # The SDK stages the runtime beside the program only on Windows and macOS; the RPATH is $ORIGIN.
     add_custom_command(TARGET geometry_wars_retro_evolved_2 POST_BUILD
@@ -179,6 +185,9 @@ if(NOT WIN32)
 endif()
 
 gw2_add_test(live_tests src/local_stats.cpp src/live_stats.cpp)
+gw2_add_test(online_tests src/online_client.cpp)
+gw2_add_test(online_board_tests src/online_board.cpp src/online_client.cpp src/live_stats.cpp src/local_stats.cpp)
+gw2_add_test(profile_name_tests)
 gw2_add_test(achievements_overlay_rules_tests)
 gw2_add_test(launcher_tests src/game_files.cpp src/stfs.cpp src/launcher_achievements.cpp)
 gw2_add_test(window_host_tests)

@@ -14,11 +14,19 @@
   .\tools\package-release.ps1 -Clean       # clean Release build first
   .\tools\package-release.ps1 -SkipBuild   # package the existing build-release\ output
   .\tools\package-release.ps1 -VerifyOnly dist\GeometryWarsRetroEvolved2-v0.3.1-windows-x64
+  .\tools\package-release.ps1 -ServerUrl https://gw2.example.org -InviteCode the-code
+                                           # a ZIP for friends: ...-friends.zip, server address and invite code filled in
+
+  A public release carries no server address and no invite code, and the script refuses to package a build whose
+  geometry_wars_retro_evolved_2.toml holds either. -ServerUrl and -InviteCode (both or neither) put them into the
+  staged copy only; the result is named ...-friends.zip and must be shared privately.
 #>
 param(
     [switch]$Clean,
     [switch]$SkipBuild,
-    [string]$VerifyOnly  # only check a staged folder for game or user files, then exit
+    [string]$VerifyOnly,  # only check a staged folder for game or user files, then exit
+    [string]$ServerUrl,   # with -InviteCode: package a ZIP for friends that has both filled in
+    [string]$InviteCode
 )
 $ErrorActionPreference = 'Stop'
 
@@ -102,7 +110,17 @@ if ($VerifyOnly) {
 $cmake = Get-Content (Join-Path $Root 'CMakeLists.txt') -Raw
 if ($cmake -notmatch '(?m)^\s*project\(\s*geometry_wars_retro_evolved_2\s+VERSION\s+(\d+\.\d+\.\d+)') { throw 'Project VERSION not found in CMakeLists.txt' }
 $Version = $Matches[1]
-$Name = "GeometryWarsRetroEvolved2-v$Version-windows-x64"
+# The fork's own version, set(GW2_MOD_VERSION "0.1.0"): GeometryWarsRetroEvolved2-v0.3.1-windows-x64-modded-v0.1.0.
+if ($cmake -notmatch '(?m)^\s*set\(\s*GW2_MOD_VERSION\s+"(\d+\.\d+\.\d+)"\s*\)') { throw 'set(GW2_MOD_VERSION "x.y.z") not found in CMakeLists.txt' }
+$ModVersion = $Matches[1]
+$Name = "GeometryWarsRetroEvolved2-v$Version-windows-x64-modded-v$ModVersion"
+$ForFriends = [bool]($ServerUrl -or $InviteCode)
+if ($ForFriends) {
+    if (-not $ServerUrl -or -not $InviteCode) { throw 'Give both -ServerUrl and -InviteCode, or neither' }
+    if ($ServerUrl -notmatch '^https://[^\s"\\]+$') { throw '-ServerUrl must start with https:// and hold no spaces or quotes' }
+    if ($InviteCode -match '[\s"\\]') { throw '-InviteCode must not hold spaces, quotes or backslashes' }
+    $Name += '-friends'
+}
 $Dist = Join-Path $Root 'dist'
 $Stage = Join-Path $Dist $Name
 $Zip = Join-Path $Dist "$Name.zip"
@@ -148,6 +166,30 @@ foreach ($leaf in $LicenseFiles) {
 $readme = (Get-Content (Join-Path $Packaging 'README.txt') -Raw).Replace('@VERSION@', $Version) -replace "\r?\n", "`r`n"
 [IO.File]::WriteAllText((Join-Path $Stage 'README.txt'), $readme, $Utf8NoBom)
 
+# The shipped configuration: a public release has an empty server address and invite code, a friends' ZIP has both.
+$StagedToml = Join-Path $Stage 'geometry_wars_retro_evolved_2.toml'
+$tomlText = [IO.File]::ReadAllText($StagedToml)
+$newline = if ($tomlText.Contains("`r`n")) { "`r`n" } else { "`n" }
+$tomlLines = $tomlText -split "`r?`n"
+$sawUrl = $false
+$sawInvite = $false
+for ($i = 0; $i -lt $tomlLines.Count; $i++) {
+    if ($tomlLines[$i] -match '^\s*gw2_online_url\s*=') {
+        $sawUrl = $true
+        if ($ForFriends) { $tomlLines[$i] = 'gw2_online_url = "' + $ServerUrl + '"' }
+        elseif ($tomlLines[$i] -notmatch '^\s*gw2_online_url\s*=\s*""\s*(#.*)?$') { $tomlLines[$i] = $null }
+    } elseif ($tomlLines[$i] -match '^\s*gw2_online_invite\s*=') {
+        $sawInvite = $true
+        if ($ForFriends) { $tomlLines[$i] = 'gw2_online_invite = "' + $InviteCode + '"' }
+        elseif ($tomlLines[$i] -notmatch '^\s*gw2_online_invite\s*=\s*""\s*(#.*)?$') { $tomlLines[$i] = $null }
+    }
+}
+if (-not $sawUrl -or -not $sawInvite) { throw 'geometry_wars_retro_evolved_2.toml has no gw2_online_url / gw2_online_invite line' }
+if ($tomlLines -contains $null) {
+    throw 'The build output carries a server address or invite code. Copy config\geometry_wars_retro_evolved_2.toml over build-release\ and package again.'
+}
+if ($ForFriends) { [IO.File]::WriteAllText($StagedToml, ($tomlLines -join $newline), $Utf8NoBom) }
+
 $problems = Test-ReleaseFolder $Stage
 if ($problems.Count) { Write-Problems $problems; throw 'The staging folder holds files that must not be released' }
 
@@ -183,6 +225,11 @@ Write-Host '===================================================='
 Write-Host "  ZIP:     $Zip ($([math]::Round((Get-Item $Zip).Length / 1MB, 1)) MB)"
 Write-Host "  SHA-256: $hash"
 Write-Host "  Hash file: $ShaFile"
+if ($ForFriends) {
+    Write-Host '  FOR FRIENDS: this ZIP holds the server address and the invite code. Share it privately, never upload it.' -ForegroundColor Yellow
+} else {
+    Write-Host '  Public release: no server address, no invite code.'
+}
 Write-Host '  Contents:'
 foreach ($entry in $entries) { Write-Host "    $entry" }
 Write-Host ''

@@ -23,6 +23,8 @@ constexpr uint32_t kViewSize = 16;
 constexpr uint32_t kRowSize = 48;
 constexpr uint32_t kSpecSize = 136;
 constexpr uint32_t kMaxSpecs = 64;
+// Rows per view an enumeration may return; the buffer size handed to the game follows the rows it asks for.
+constexpr uint32_t kMaxEnumeratedRows = 100;
 
 // The only property the game writes: X_PROPERTY_SCORE, a 64-bit integer.
 constexpr uint32_t kScorePropertyId = 0x20000001;
@@ -39,37 +41,62 @@ struct StatsRow {
   std::string gamertag;
 };
 
+// A player on the friends list the game enumerates (the server's players; the game's own list is empty).
+struct FriendInfo {
+  uint64_t xuid = 0;
+  std::string name;
+};
+
 struct StatsView {
   uint32_t id = 0;
   uint32_t total_rows = 0;
   std::vector<StatsRow> rows;
 };
 
+// Where the game's leaderboard queries are answered from.
+class BoardSource {
+ public:
+  virtual ~BoardSource() = default;
+  virtual const LocalUser& user() const = 0;
+  virtual StatsView Ranked(uint32_t view, uint32_t first_rank, uint32_t max_rows) const = 0;
+  virtual StatsView Around(uint32_t view, uint64_t xuid, uint32_t max_rows) const = 0;
+  virtual StatsView Selected(uint32_t view, const std::vector<uint64_t>& xuids) const = 0;
+  // The other players the game lists as friends. Empty offline.
+  virtual std::vector<FriendInfo> Friends() const { return {}; }
+};
+
 // What an offline console knows: the local player's best score in each view and nobody else.
-class LocalLeaderboard {
+class LocalLeaderboard final : public BoardSource {
  public:
   LocalLeaderboard(const LocalStats& stats, LocalUser user) : stats_(stats), user_(std::move(user)) {}
 
-  const LocalUser& user() const { return user_; }
+  const LocalUser& user() const override { return user_; }
+  // The name rows carry. Set once before the game starts; safe against a concurrent read.
+  void SetUserName(std::string name) {
+    std::lock_guard lock(name_mutex_);
+    user_.name = std::move(name);
+  }
 
-  StatsView Ranked(uint32_t view, uint32_t first_rank, uint32_t max_rows) const;
-  StatsView Around(uint32_t view, uint64_t xuid, uint32_t max_rows) const;
+  StatsView Ranked(uint32_t view, uint32_t first_rank, uint32_t max_rows) const override;
+  StatsView Around(uint32_t view, uint64_t xuid, uint32_t max_rows) const override;
   // A row for the local player when it is asked for, scored or not.
-  StatsView Selected(uint32_t view, const std::vector<uint64_t>& xuids) const;
+  StatsView Selected(uint32_t view, const std::vector<uint64_t>& xuids) const override;
 
  private:
   StatsRow Row(uint32_t view) const;
 
   const LocalStats& stats_;
   LocalUser user_;
+  mutable std::mutex name_mutex_;
 };
 
 struct StatsQuery {
-  enum class Kind { kRanked, kAround };
+  enum class Kind { kRanked, kAround, kFriends };
   Kind kind = Kind::kRanked;
   uint64_t pivot = 0;
   uint32_t max_rows = 0;
   std::vector<uint32_t> views;
+  std::vector<FriendInfo> friends;  // kFriends: the list this enumeration returns
 };
 
 // Handles for enumerators the port answers itself. The range never overlaps the runtime's object
@@ -111,11 +138,23 @@ uint32_t CreateEnumerator(uint8_t* base, EnumeratorRegistry& registry, StatsQuer
 
 // XamEnumerate on a registered handle: fills the results and completes the overlapped like the
 // console does (the call returns IO_PENDING once the overlapped carries the result).
-uint32_t ServeEnumeration(uint8_t* base, const LocalLeaderboard& board, const StatsQuery& query, uint32_t buffer,
+// XFriendsCreateEnumerator: registers an enumeration of the board's friends and writes the buffer size and the
+// handle. False (nothing written) when the board has no friends, so the caller falls back to the runtime.
+bool CreateFriendsEnumerator(uint8_t* base, EnumeratorRegistry& registry, const BoardSource& board, uint32_t max_rows,
+                             uint32_t size_ptr, uint32_t handle_ptr, uint32_t* handle_out = nullptr);
+
+// Size of one XONLINE_FRIEND in the guest's buffer: xuid 8, gamertag 16, state 4, session id 8, title 4, user time 8,
+// invite id 8, invite time 8, rich presence length 4, rich presence 128 characters.
+constexpr uint32_t kFriendSize = 196;
+
+// Bytes a stats read of `xuid_count` players needs: at most one row per player in each view.
+uint32_t ReadStatsSize(uint32_t spec_count, uint32_t xuid_count);
+
+uint32_t ServeEnumeration(uint8_t* base, const BoardSource& board, const StatsQuery& query, uint32_t buffer,
                           uint32_t size, uint32_t items_ptr, uint32_t overlapped);
 
 // XUserReadStats: fills the results buffer. False when it is missing or too small.
-bool ServeReadStats(uint8_t* base, const LocalLeaderboard& board, uint32_t xuid_count, uint32_t xuids,
+bool ServeReadStats(uint8_t* base, const BoardSource& board, uint32_t xuid_count, uint32_t xuids,
                     uint32_t spec_count, uint32_t specs, uint32_t size, uint32_t results);
 
 }  // namespace gw2::live

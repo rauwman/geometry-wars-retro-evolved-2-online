@@ -4,8 +4,8 @@
 
 ### Geometry Wars: Retro Evolved 2 running natively on Windows, and experimentally on Linux and Steam Deck, through static recompilation, with the TRG launcher, high frame rate support and modern PC options
 
-[![Latest release](https://img.shields.io/github/v/release/saulob/geometry-wars-retro-evolved-2-recompiled?style=for-the-badge&label=release&color=943cff&labelColor=07101f&cacheSeconds=300)](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/saulob/geometry-wars-retro-evolved-2-recompiled/total?style=for-the-badge&color=943cff&labelColor=07101f&cacheSeconds=300)](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/releases)
+[![Latest release](https://img.shields.io/github/v/release/rauwman/geometry-wars-retro-evolved-2-recompiled?style=for-the-badge&label=release&color=943cff&labelColor=07101f&cacheSeconds=300)](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/rauwman/geometry-wars-retro-evolved-2-recompiled/total?style=for-the-badge&color=943cff&labelColor=07101f&cacheSeconds=300)](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/releases)
 ![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20experimental%20%7C%20Steam%20Deck%20experimental-00acc1?style=for-the-badge&labelColor=07101f)
 
 <sub>The original Xbox 360 game code, statically recompiled to native PC code with the <a href="https://github.com/rexglue/rexglue-sdk">ReXGlue SDK</a>. <b>No game files included</b>: bring your own Geometry Wars: Retro Evolved 2 Xbox Live Arcade package.</sub>
@@ -13,6 +13,11 @@
 </div>
 
 <img width="1905" height="1071" alt="2026-10-11_18-47" src="https://github.com/user-attachments/assets/08b1ed2c-3244-41c1-94f1-e2ae4c1b76d1" />
+
+> **This is a fork** of [saulob/geometry-wars-retro-evolved-2-recompiled](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled). It adds an
+> optional **friends leaderboard**: friends who run their own small server see each other's scores in the game's own
+> leaderboard screens. Everything else is the original port, with all credit to its author. See
+> [docs/online.md](docs/online.md). Without a server address the game stays fully offline, as before.
 
 ## Features
 
@@ -24,6 +29,7 @@
 - Automatic discrete-GPU preference on hybrid systems, and a more reliable Exit Game
 - Frame rate in the window title, and an in-game frame rate counter (**F2**)
 - Local profile and progression, local scores, offline leaderboards, and all 12 achievements (**F7** overlay), with no Xbox Live connection
+- Optional friends leaderboard (this fork): pick an online name in the launcher, and your best scores and your friends' show up in the game's Overall, My score and Friends boards. Needs a leaderboard server run by someone you know; see [docs/online.md](docs/online.md)
 - Cheats (Invincible, Infinite Shield, Infinite Bombs), set in the launcher or toggled in game with **F10**
 - Portable `user_data` folder next to the program, with automatic migration of v0.1.0 data
 - **F11** in the launcher and **F11** in the game are independent: the launcher's fullscreen never changes the game's Display mode
@@ -48,7 +54,7 @@ The launcher checks the Title ID and content type when you pick the package, and
 
 ## Installing
 
-1. Download **GeometryWarsRetroEvolved2-v0.3.1-windows-x64.zip** from the [latest release](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/releases/latest) and extract it anywhere you can write to.
+1. Download **GeometryWarsRetroEvolved2-v0.3.1-windows-x64-modded-v0.1.0.zip** from the [latest release](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/releases/latest) and extract it anywhere you can write to.
 2. Run **geometry_wars_retro_evolved_2.exe**. The launcher opens.
 3. On the **Play** page click **Install from package...** and pick your package. It is one file with a long hexadecimal name and no extension. On an Xbox 360 drive it is in `Content\0000000000000000\584108FF\000D0000\`.
 4. Wait until **Ready to play** appears. The game files are copied into the `game` folder next to the program. The package file itself is not copied there.
@@ -71,6 +77,8 @@ Your settings, profile, scores, achievements, saves and progression, and the sha
 1. Download **GeometryWarsRetroEvolved2Recompiled-v…-x86_64.AppImage** from the release and mark it executable (right-click > **Properties** > **Permissions** > **Is executable**, or `chmod +x`).
 2. Run it, then install your package from the **Play** page as above. The game files go in a `game` folder next to the AppImage. The package picker needs `zenity` or `kdialog`.
 3. On a Steam Deck (intended flow, not yet tried on a Deck), do this in **Desktop Mode**, then add the AppImage with **Games > Add a Non-Steam Game to My Library** and play it from **Game Mode**.
+
+The friends leaderboard is not available in the Linux build yet.
 
 Settings and saves are in `user_data` and logs in `logs`, both next to the AppImage file (not inside it). Requirements, known limits and building the AppImage are in [docs/linux.md](docs/linux.md).
 
@@ -142,14 +150,14 @@ Everything stays offline: there is no Xbox Live connection, Microsoft sign-in or
 
 ## Reporting problems
 
-If the game does not start or crashes, please open an [issue](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/issues). Attach the newest `geometry_wars_retro_evolved_2_*.log` file from the `logs` folder next to the program, and say what you were doing when the problem happened.
+If the game does not start or crashes, please open an [issue](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/issues). Attach the newest `geometry_wars_retro_evolved_2_*.log` file from the `logs` folder next to the program, and say what you were doing when the problem happened.
 
 ## Building it yourself
 
 The recompiled C++ is generated from your own game files, so the repository does not contain it. Clone with submodules, so the TRG launcher is included:
 
 ```powershell
-git clone --recurse-submodules https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled.git
+git clone --recurse-submodules https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled.git
 ```
 
 In an existing clone, run `git submodule update --init --recursive`.

@@ -25,6 +25,7 @@
 #include "launcher_platform.h"
 #include "launcher_settings.h"
 #include "live_fix.h"
+#include "profile_name.h"
 #include "user_data.h"
 #include "window_host.h"
 
@@ -186,6 +187,9 @@ class GeometryWarsRetroEvolved2App : public rex::ReXApp {
     if (!profile) return;
     gw2::live::Install({
         .stats_file = gw2::StatsFilePath(std::filesystem::absolute(user_data_root()), kernel->title_id()),
+        .online_scores_file =
+            gw2::StatsFilePath(std::filesystem::absolute(user_data_root()), kernel->title_id()).parent_path() /
+            "online_scores.toml",
         .user = {profile->xuid(), profile->name()},
         .bridge = {
             .open_achievements = [this] { app_context().CallInUIThreadDeferred([this] { OpenAchievements(); }); },
@@ -234,8 +238,25 @@ class GeometryWarsRetroEvolved2App : public rex::ReXApp {
   // The cheat menu exists only once the game starts, so F10 does nothing over the launcher or the installer.
   void StartGame() {
     gw2::LogGameSettings();
+    gw2::live::ConfigureOnline({settings_->Get(gw2::kOnlineUrlKey), settings_->Get(gw2::kOnlineTokenKey),
+                                settings_->Get(gw2::kOnlineNameKey)});
+    ShowOnlineNameInGame();
     InstallCheatMenu();
     ReXApp::LaunchModule();
+  }
+
+  // The game shows the profile's name under the menus. The profile is the runtime's fixed "User"; with an online
+  // account its name becomes the online name.
+  void ShowOnlineNameInGame() {
+    const std::string name = settings_->Get(gw2::kOnlineNameKey);
+    if (name.empty() || settings_->Get(gw2::kOnlineTokenKey).empty()) {
+      return;
+    }
+    auto* kernel = runtime() ? runtime()->kernel_state() : nullptr;
+    const auto* profile = kernel ? kernel->user_profile() : nullptr;
+    if (!gw2::SetProfileName(profile, name)) {
+      REXLOG_WARN("Online: the game's profile name could not be changed to \"{}\"", name);
+    }
   }
 
   void InstallCheatMenu() {

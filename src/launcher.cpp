@@ -28,6 +28,7 @@
 #include "frame_limiter.h"
 #include "game_files.h"
 #include "launcher_achievements.h"
+#include "launcher_online.h"
 #include "launcher_options.h"
 #include "launcher_placement.h"
 #include "launcher_play.h"
@@ -41,7 +42,7 @@ namespace {
 const ImVec4 kAccent = ImVec4(0.580f, 0.235f, 1.0f, 1.0f);
 constexpr double kPlayFeedbackSeconds = 0.4;
 constexpr ImGuiConfigFlags kNavFlags = ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
-constexpr char kRepositoryText[] = "github.com/saulob/geometry-wars-retro-evolved-2-recompiled";
+constexpr char kRepositoryText[] = "github.com/rauwman/geometry-wars-retro-evolved-2-recompiled";
 constexpr char kShowLauncherHelp[] = "Off starts the game directly. Hold Shift while starting to bring it back.";
 constexpr char kWindowSizeHelp[] =
     "The game window's size in Windowed mode. A new window: the game restarts once when you press Play.";
@@ -155,6 +156,7 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
       : ImGuiDialog(drawer),
         paths_(std::move(paths)),
         settings_(settings),
+        online_(settings),
         game_(game),
         callbacks_(std::move(callbacks)),
         monitors_(ListMonitors()) {
@@ -176,6 +178,7 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
       return;
     }
     PollInstall();
+    online_.Poll();
     TrackPlacement();
     if (!nav_taken_) {
       saved_nav_flags_ = io.ConfigFlags & kNavFlags;
@@ -400,6 +403,8 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
         return {name, "Controller and keyboard.", [this](trg::Ui& ui) { PageControls(ui); }, nullptr};
       case PageId::kCheats:
         return {name, "Optional gameplay modifiers", [this](trg::Ui& ui) { PageCheats(ui); }, nullptr};
+      case PageId::kOnline:
+        return {name, "Your name on the friends leaderboard.", [this](trg::Ui& ui) { online_.Draw(ui); }, nullptr};
       case PageId::kAchievements:
         return {name, "Your achievements on this PC.", [this](trg::Ui& ui) { PageAchievements(ui); }, nullptr};
       case PageId::kAbout:
@@ -681,6 +686,7 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
 
   LauncherPaths paths_;
   GameSettings& settings_;
+  OnlinePage online_;
   LauncherGameContext game_;
   LauncherCallbacks callbacks_;
   GameFileState files_ = GameFileState::kMissing;

@@ -134,6 +134,10 @@ void RegisterGameDefaults(FakeCvars& cvars) {
   cvars.Register(kLauncherHeightKey, "0");
   cvars.Register(kLauncherMaximizedKey, "false");
   cvars.Register(kLauncherFullscreenKey, "false");
+  cvars.Register(kOnlineUrlKey, "");
+  cvars.Register(kOnlineInviteKey, "");
+  cvars.Register(kOnlineNameKey, "");
+  cvars.Register(kOnlineTokenKey, "");
   cvars.Register(kShowFpsKey, kShowFpsDefault ? "true" : "false");
   cvars.Register(kShowFrameCounterKey, kShowFrameCounterDefault ? "true" : "false");
   for (const cheats::CheatInfo& cheat : cheats::kCheats) {
@@ -314,6 +318,40 @@ void TestResetToDefaults() {
   CHECK(ReadText(user / "achievements" / "584108FF.toml") == "unlocked");
 }
 
+void TestResetKeepsOnlineAccount() {
+  Section("reset keeps the online account");
+  const fs::path dir = FreshDir("reset_online");
+  const fs::path file = LauncherSettingsPath(dir);
+  WriteText(dir / "shipped.toml", "gw2_online_url = \"https://shipped.example\"\nfullscreen = false\n");
+  FakeCvars cvars;
+  RegisterGameDefaults(cvars);
+  GameSettings settings(cvars, file, dir / "shipped.toml");
+  settings.Capture();
+  CHECK(settings.SaveNow({{kOnlineUrlKey, "https://mine.example"},
+                          {kOnlineInviteKey, "code \"1\""},
+                          {kOnlineNameKey, "Yann R"},
+                          {kOnlineTokenKey, "tok-123"}}));
+  settings.Set(kFullscreenKey, "true");
+  settings.ResetToDefaults();
+  CHECK(settings.Get(kFullscreenKey) == "false");
+  CHECK(settings.Get(kOnlineUrlKey) == "https://mine.example");
+  CHECK(settings.Get(kOnlineInviteKey) == "code \"1\"");
+  CHECK(settings.Get(kOnlineNameKey) == "Yann R");
+  CHECK(settings.Get(kOnlineTokenKey) == "tok-123");
+  CHECK(settings.Save());
+
+  const Values written = ReadSettingsValues(file);
+  CHECK(written.at(kOnlineNameKey) == "Yann R");
+  CHECK(written.at(kOnlineTokenKey) == "tok-123");
+  CHECK(written.at(kOnlineInviteKey) == "code \"1\"");
+  CHECK(IsOnlineIdentitySetting(kOnlineTokenKey) && !IsOnlineIdentitySetting(kFullscreenKey));
+
+  // Signing out blanks the account without touching other settings.
+  CHECK(settings.SaveNow({{kOnlineNameKey, ""}, {kOnlineTokenKey, ""}}));
+  CHECK(settings.Get(kOnlineTokenKey).empty() && settings.Get(kOnlineNameKey).empty());
+  CHECK(ReadSettingsValues(file).at(kOnlineTokenKey).empty());
+}
+
 void TestSaveNowKeepsOtherPendingEdits() {
   Section("window mode toggle keeps pending edits");
   const fs::path dir = FreshDir("toggle");
@@ -410,15 +448,16 @@ void TestGraphicsOptions() {
 
 void TestPagesAndKeyList() {
   Section("pages and key list");
-  CHECK(std::size(kPageOrder) == 8);
+  CHECK(std::size(kPageOrder) == 9);
   CHECK(PageName(kPageOrder[0]) == "Play");
   CHECK(PageName(kPageOrder[1]) == "Display");
   CHECK(PageName(kPageOrder[2]) == "Graphics");
   CHECK(PageName(kPageOrder[3]) == "Gameplay");
   CHECK(PageName(kPageOrder[4]) == "Cheats");
   CHECK(PageName(kPageOrder[5]) == "Controls");
-  CHECK(PageName(kPageOrder[6]) == "Achievements");
-  CHECK(PageName(kPageOrder[7]) == "About");
+  CHECK(PageName(kPageOrder[6]) == "Online");
+  CHECK(PageName(kPageOrder[7]) == "Achievements");
+  CHECK(PageName(kPageOrder[8]) == "About");
   CHECK(KeyList("Semicolon,Space") == "Semicolon or Space");
   CHECK(KeyList("") == "None");
 }
@@ -984,6 +1023,7 @@ int main() {
   TestWindowChangeDetection();
   TestWindowChangeIgnoresFitAndCapture();
   TestResetToDefaults();
+  TestResetKeepsOnlineAccount();
   TestSaveNowKeepsOtherPendingEdits();
   TestPlayGate();
   TestLauncherPolicy();

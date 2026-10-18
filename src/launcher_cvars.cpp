@@ -26,6 +26,11 @@ REXCVAR_DEFINE_BOOL(gw2_msaa_compatibility, false, "Geometry Wars",
                     "Draw the game's 2x MSAA render targets with 4x MSAA, for GPUs or drivers whose native 2x MSAA "
                     "misrenders (sets native_2x_msaa)")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+REXCVAR_DEFINE_STRING(gw2_online_url, "", "Online",
+                      "Address of the friends leaderboard server, https://host (set by the launcher)");
+REXCVAR_DEFINE_STRING(gw2_online_invite, "", "Online", "Invite code for creating an online name on that server");
+REXCVAR_DEFINE_STRING(gw2_online_name, "", "Online", "Your online name, shown on the leaderboard (set by the launcher)");
+REXCVAR_DEFINE_STRING(gw2_online_token, "", "Online", "Secret that proves the name is yours (set by the launcher)");
 REXCVAR_DEFINE_INT32(gw2_launcher_x, 0, "Launcher", "Launcher window position, left edge (set by the launcher)");
 REXCVAR_DEFINE_INT32(gw2_launcher_y, 0, "Launcher", "Launcher window position, top edge (set by the launcher)");
 REXCVAR_DEFINE_INT32(gw2_launcher_width, 0, "Launcher", "Launcher window width; 0 uses the default (set by the launcher)");

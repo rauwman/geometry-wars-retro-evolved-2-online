@@ -1,6 +1,7 @@
 #include "live_fix.h"
 
 #include <atomic>
+#include <chrono>
 #include <cstring>
 #include <mutex>
 
@@ -9,7 +10,10 @@
 #include <rex/logging.h>
 
 #include "achievements_overlay_rules.h"
+#include "cheats.h"
 #include "guest_memory.h"
+#include "online_board.h"
+#include "online_client.h"
 
 REXCVAR_DEFINE_BOOL(gw2_local_live, true, "Geometry Wars",
                     "Serve the game's Xbox Live scores and leaderboards from a local file; nothing goes online")
@@ -25,9 +29,14 @@ constexpr uint32_t kInputStateGamepadSize = 12;
 constexpr uint32_t kThumbLeftYOffset = 6;
 
 struct Services {
-  Services(std::filesystem::path file, LocalUser user) : stats(std::move(file)), board(stats, std::move(user)) {}
+  Services(std::filesystem::path file, std::filesystem::path online_file, LocalUser user)
+      : stats(std::move(file)), clean(std::move(online_file)), board(stats, std::move(user)) {}
 
   LocalStats stats;
+  LocalStats clean;  // the scores the server may see: none earned with a cheat in effect
+  std::atomic<online::OnlineClient*> client{nullptr};  // set once by ConfigureOnline, never freed
+  std::atomic<online::BoardCache*> cache{nullptr};      // the friends' boards, likewise
+  std::atomic<const BoardSource*> source{nullptr};      // what answers the game's leaderboard queries
   LocalLeaderboard board;
   EnumeratorRegistry enumerators;
 };
@@ -48,15 +57,40 @@ bool Succeeded(PPCContext& ctx, uint8_t* base, uint32_t overlapped) {
   return status == kErrorSuccess;
 }
 
+// Opening a leaderboard asks the server for fresh boards (the answer is usually "unchanged"). The screen is served from
+// what the cache holds right now, so it never waits; a burst of queries asks once.
+void RefreshBoardsSoon(Services* services) {
+  online::BoardCache* cache = services->cache.load(std::memory_order_acquire);
+  if (!cache) return;
+  static std::atomic<int64_t> last_ms{0};
+  const int64_t now =
+      std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+  int64_t before = last_ms.load(std::memory_order_relaxed);
+  if (now - before < 3000 || !last_ms.compare_exchange_strong(before, now)) return;
+  cache->Refresh();
+}
+
+// The first few leaderboard queries are logged, to see what each filter of the game's leaderboard screen asks for.
+bool LogQuery() {
+  static std::atomic<int> logged{0};
+  return logged.fetch_add(1) < 60;
+}
+
 bool CreateStatsEnumerator(PPCContext& ctx, uint8_t* base, StatsQuery::Kind kind) {
   Services* services = Active();
   if (!services || ctx.r3.u32 != 0) return false;
+  if (LogQuery()) {
+    REXLOG_INFO("Leaderboard query: {} pivot {} rows {} views {}",
+                kind == StatsQuery::Kind::kRanked ? "by rank" : "around xuid",
+                kind == StatsQuery::Kind::kRanked ? ctx.r4.u32 : ctx.r4.u64, ctx.r5.u32, ctx.r6.u32);
+  }
 
   const bool ranked = kind == StatsQuery::Kind::kRanked;
   const uint64_t pivot = ranked ? ctx.r4.u32 : ctx.r4.u64;
   uint32_t handle = 0;
   ctx.r3.u64 = CreateEnumerator(base, services->enumerators, kind, pivot, ctx.r5.u32, ctx.r6.u32, ctx.r7.u32,
                                 ctx.r8.u32, ctx.r9.u32, &handle);
+  RefreshBoardsSoon(services);
   return true;
 }
 
@@ -87,13 +121,43 @@ void Install(InstallParams params) {
     REXLOG_INFO("Local Live services are disabled (gw2_local_live=false)");
     return;
   }
-  auto* services = new Services(std::move(params.stats_file), std::move(params.user));
+  auto* services =
+      new Services(std::move(params.stats_file), std::move(params.online_scores_file), std::move(params.user));
   const LoadResult loaded = services->stats.Load();
   REXLOG_INFO("Local Live services ready, stats file {}",
               loaded == LoadResult::kLoaded    ? "loaded"
               : loaded == LoadResult::kMissing ? "not created yet"
                                                : "was corrupt");
+  services->source.store(&services->board, std::memory_order_release);
   g_services.store(services, std::memory_order_release);
+}
+
+void ConfigureOnline(const OnlineParams& params) {
+  Services* services = Active();
+  if (!services) return;
+  if (!params.name.empty()) services->board.SetUserName(params.name);
+  if (params.token.empty()) return;
+  const std::string url = online::NormalizeBaseUrl(params.url);
+  if (url.empty()) {
+    REXLOG_WARN("Online: the server address is not usable, scores stay on this PC");
+    return;
+  }
+  const uint64_t xuid = services->board.user().xuid;
+  // Scores from before the account existed carry no record of cheats; they are taken once, as they are.
+  if (services->clean.Load() == LoadResult::kMissing) {
+    for (const auto& [view, score] : services->stats.BestAll(xuid)) services->clean.Record(xuid, view, score);
+  }
+  const auto log = [](const std::string& line) { REXLOG_INFO("Online: {}", line); };
+  auto* cache = new online::BoardCache({url, params.token}, online::MakeSystemTransport(), log);
+  auto* remote = new online::RemoteLeaderboard(
+      services->board, *cache, params.name, [services, xuid](uint32_t view) { return services->clean.Best(xuid, view); });
+  auto* client = new online::OnlineClient(
+      {url, params.token}, online::MakeSystemTransport(), [services, xuid] { return services->clean.BestAll(xuid); }, log,
+      {}, [cache] { cache->Refresh(); });
+  services->cache.store(cache, std::memory_order_release);
+  services->source.store(remote, std::memory_order_release);
+  services->client.store(client, std::memory_order_release);
+  REXLOG_INFO("Online: signed in as \"{}\"", params.name);
 }
 
 void SetAchievementsModal(bool modal) {
@@ -136,11 +200,20 @@ REX_HOOK_RAW(sub_820E88F8) {
   if (!services || !Succeeded(ctx, base, overlapped)) return;
   if (xuid != services->board.user().xuid) return;
 
+  // Asked once per finished game, so a cheat used in this game keeps this score off the server.
+  const bool cheated = cheats::TakeUsed();
+  online::OnlineClient* client = services->client.load(std::memory_order_acquire);
+  bool clean_changed = false;
   for (const ScoreWrite& write : ParseScoreWrites(base, views, view_count)) {
     if (services->stats.Record(xuid, write.view, write.score) == RecordResult::kNotSaved) {
       REXLOG_WARN("New best score in view {} kept in memory: the stats file could not be written", write.view);
     }
+    if (client && !cheated && services->clean.Record(xuid, write.view, write.score) != RecordResult::kUnchanged) {
+      clean_changed = true;
+    }
   }
+  if (client && cheated) REXLOG_INFO("Online: a cheat was in use, this score stays on this PC");
+  if (clean_changed) client->ScoresChanged();
 }
 
 // XUserCreateStatsEnumeratorByRank / ByXuid: ReXGlue only stubs the underlying call.
@@ -154,6 +227,24 @@ REX_HOOK_RAW(sub_82095718) {
   if (!CreateStatsEnumerator(ctx, base, StatsQuery::Kind::kAround)) __imp__sub_82095718(ctx, base);
 }
 
+// XFriendsCreateEnumerator(user, first, max, size ptr, handle ptr): the game's friend list is empty (ReXGlue fails the
+// call). With a board, the server's players are the friends, so the game asks for their scores itself.
+REX_EXTERN(__imp__sub_820E8A98);
+REX_HOOK_RAW(sub_820E8A98) {
+  if (Services* services = Active()) {
+    const BoardSource& source = *services->source.load(std::memory_order_acquire);
+    uint32_t handle = 0;
+    if (CreateFriendsEnumerator(base, services->enumerators, source, ctx.r5.u32, ctx.r6.u32, ctx.r7.u32, &handle)) {
+      REXLOG_INFO("Leaderboard: friend list with {} player(s) handed to the game", LoadBE32(base, ctx.r6.u32) / kFriendSize);
+      ctx.r3.u64 = kErrorSuccess;
+      return;
+    }
+    REXLOG_INFO("Leaderboard: friend list asked for, no players to give ({} max, size ptr {:08X}, handle ptr {:08X})",
+                ctx.r5.u32, ctx.r6.u32, ctx.r7.u32);
+  }
+  __imp__sub_820E8A98(ctx, base);
+}
+
 // XEnumerate(handle, buffer, size, items, overlapped). Other handles (friends, achievements) are
 // ReXGlue's.
 REX_EXTERN(__imp__sub_820958D0);
@@ -161,7 +252,7 @@ REX_HOOK_RAW(sub_820958D0) {
   if (Services* services = Active()) {
     const uint32_t handle = ctx.r3.u32;
     if (const auto query = services->enumerators.Take(handle)) {
-      ctx.r3.u64 = ServeEnumeration(base, services->board, *query, ctx.r4.u32, ctx.r5.u32, ctx.r6.u32, ctx.r7.u32);
+      ctx.r3.u64 = ServeEnumeration(base, *services->source.load(std::memory_order_acquire), *query, ctx.r4.u32, ctx.r5.u32, ctx.r6.u32, ctx.r7.u32);
       return;
     }
   }
@@ -181,9 +272,19 @@ REX_HOOK_RAW(sub_820955D0) {
   const uint32_t overlapped = ctx.r10.u32;
   __imp__sub_820955D0(ctx, base);
   Services* services = Active();
+  if (services && LogQuery()) {
+    REXLOG_INFO("Leaderboard read: {} xuid(s), {} view(s), buffer {} bytes, results {}", xuid_count, spec_count,
+                size_ptr ? LoadBE32(base, size_ptr) : 0, results ? "given" : "none");
+  }
+  if (services && !results && size_ptr && xuid_count > 1 && spec_count && spec_count <= kMaxSpecs &&
+      Succeeded(ctx, base, overlapped)) {
+    // Every player may have a row in each view; make sure the game's buffer has room for them.
+    const uint32_t wanted = ReadStatsSize(spec_count, xuid_count);
+    if (wanted > LoadBE32(base, size_ptr)) StoreBE32(base, size_ptr, wanted);
+  }
   if (!services || !results || !size_ptr || !Succeeded(ctx, base, overlapped)) return;
 
-  ServeReadStats(base, services->board, xuid_count, xuids, spec_count, specs, LoadBE32(base, size_ptr), results);
+  ServeReadStats(base, *services->source.load(std::memory_order_acquire), xuid_count, xuids, spec_count, specs, LoadBE32(base, size_ptr), results);
 }
 
 // XamShowAchievementsUI(user): opens the achievements overlay instead of ReXGlue's stub.

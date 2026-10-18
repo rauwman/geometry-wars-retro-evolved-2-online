@@ -27,6 +27,9 @@ class LocalStats {
 
   std::optional<int64_t> Best(uint64_t xuid, uint32_t view) const;
 
+  // Every view's best score for one user.
+  std::map<uint32_t, int64_t> BestAll(uint64_t xuid) const;
+
   // Keeps the higher score; scores of zero or less and unknown views are ignored.
   RecordResult Record(uint64_t xuid, uint32_t view, int64_t score);
 
