@@ -1,4 +1,5 @@
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 
 #if defined(_WIN32)
@@ -11,13 +12,19 @@
 #include <unistd.h>
 #endif
 
+#include <rex/cvar.h>
 #include <rex/hook.h>
+#include <rex/logging.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xmemory.h>
 
 #include "guest_memory.h"
 
 #if defined(_WIN32) || defined(__linux__)
+
+// Diagnostic switch: false makes the guest keep its own polling instead of sleeping on the fence word.
+REXCVAR_DEFINE_BOOL(gw2_fence_blocking, true, "Geometry Wars",
+                    "Sleep on the GPU fence word instead of the guest's own polling (diagnostic)");
 
 namespace {
 
@@ -47,6 +54,42 @@ struct WaitState {
 thread_local WaitState t_wait;
 
 std::atomic<bool> g_blocking_enabled{true};
+
+// Once a second the log gets one line with what the blocking waits did, to find where a frame's time goes.
+struct WaitStats {
+  std::atomic<uint32_t> blocks{0};
+  std::atomic<uint32_t> signaled{0};
+  std::atomic<uint32_t> timeouts{0};
+  std::atomic<uint32_t> missed_wakes{0};
+  std::atomic<uint64_t> blocked_us{0};
+  std::atomic<int64_t> last_log_ms{0};
+};
+WaitStats g_stats;
+
+int64_t NowMs() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
+
+void LogStatsOnceASecond() {
+  const int64_t now = NowMs();
+  int64_t last = g_stats.last_log_ms.load(std::memory_order_relaxed);
+  if (last == 0) {
+    g_stats.last_log_ms.compare_exchange_strong(last, now);
+    return;
+  }
+  if (now - last < 1000 || !g_stats.last_log_ms.compare_exchange_strong(last, now)) {
+    return;
+  }
+  REXLOG_INFO("Fence wait: {} blocks ({} woken, {} timeouts, {} missed wakes), {:.1f} ms asleep in {} ms, blocking {}",
+              g_stats.blocks.exchange(0), g_stats.signaled.exchange(0), g_stats.timeouts.exchange(0),
+              g_stats.missed_wakes.exchange(0), double(g_stats.blocked_us.exchange(0)) / 1000.0, now - last,
+              g_blocking_enabled.load(std::memory_order_relaxed) ? "on" : "off");
+}
+
+bool BlockingAllowed() {
+  return g_blocking_enabled.load(std::memory_order_relaxed) && REXCVAR_GET(gw2_fence_blocking);
+}
 std::atomic<uint32_t> g_missed_wakes{0};
 
 constexpr uint32_t HostOffset(uint32_t address) {
@@ -127,16 +170,27 @@ WaitOutcome WaitWhileEqual(const uint32_t* word, uint32_t undesired) {
 // Blocks while the word still holds the value read before the guest last re-checked its condition,
 // so a write after that read is never slept through.
 void BlockUntilFenceWritten(WaitState& wait) {
+  const auto started = std::chrono::steady_clock::now();
   const WaitOutcome outcome = WaitWhileEqual(wait.word, wait.seen);
+  g_stats.blocked_us.fetch_add(
+      uint64_t(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - started).count()),
+      std::memory_order_relaxed);
+  g_stats.blocks.fetch_add(1, std::memory_order_relaxed);
   const bool signaled = outcome == WaitOutcome::kReturned;
   const bool timed_out = outcome == WaitOutcome::kTimedOut;
   const uint32_t current = LoadWord(wait.word);
   const bool missed_wake = timed_out && current != wait.seen;
+  if (signaled) g_stats.signaled.fetch_add(1, std::memory_order_relaxed);
+  if (timed_out) g_stats.timeouts.fetch_add(1, std::memory_order_relaxed);
+  if (missed_wake) g_stats.missed_wakes.fetch_add(1, std::memory_order_relaxed);
+  LogStatsOnceASecond();
   if (outcome == WaitOutcome::kFailed || !ViewsAgree(wait.word, wait.guest_word)) {
+    REXLOG_INFO("Fence wait: blocking turned off (wait failed or the two views of the fence word differ)");
     g_blocking_enabled.store(false, std::memory_order_relaxed);
   }
   if (missed_wake) {
     if (g_missed_wakes.fetch_add(1, std::memory_order_relaxed) + 1 >= kMissedWakeLimit) {
+      REXLOG_INFO("Fence wait: blocking turned off after {} missed wakes in a row", kMissedWakeLimit);
       g_blocking_enabled.store(false, std::memory_order_relaxed);
     }
   } else if (signaled && current != wait.seen) {
@@ -155,7 +209,7 @@ REX_HOOK_RAW(sub_820A1968) {
   __imp__sub_820A1968(ctx, base);
   WaitState& wait = t_wait;
   wait = {};
-  if (caller != kBeginSite || !g_blocking_enabled.load(std::memory_order_relaxed)) {
+  if (caller != kBeginSite || !BlockingAllowed()) {
     return;
   }
   if (ResolveFenceWord(base, device, wait)) {
@@ -175,7 +229,7 @@ REX_HOOK_RAW(sub_820A1B18) {
     return;
   }
   WaitState& wait = t_wait;
-  if (!wait.word || wait.object != object || !g_blocking_enabled.load(std::memory_order_relaxed) ||
+  if (!wait.word || wait.object != object || !BlockingAllowed() ||
       DeviceStopped(base, wait.device) ||
       LoadGuest32(base, wait.device + kDeviceFenceOffset) != wait.fence_address) {
     wait = {};
