@@ -86,8 +86,8 @@ static void TestNames() {
 
 static void TestBaseUrl() {
   Section("server address");
-  Check(NormalizeBaseUrl("https://gw2.rauwman.org") == "https://gw2.rauwman.org", "plain https address");
-  Check(NormalizeBaseUrl("  https://gw2.rauwman.org/  ") == "https://gw2.rauwman.org", "trimmed, no trailing slash");
+  Check(NormalizeBaseUrl("https://leaderboard.example.org") == "https://leaderboard.example.org", "plain https address");
+  Check(NormalizeBaseUrl("  https://leaderboard.example.org/  ") == "https://leaderboard.example.org", "trimmed, no trailing slash");
   Check(NormalizeBaseUrl("HTTPS://Host.Example/api//") == "https://Host.Example/api", "scheme lowered, prefix kept");
   Check(NormalizeBaseUrl("https://host:8443") == "https://host:8443", "port kept");
   Check(NormalizeBaseUrl("http://example.com").empty(), "plain http to the internet is refused");
@@ -100,7 +100,7 @@ static void TestBaseUrl() {
   Check(NormalizeBaseUrl("http://172.15.0.1").empty(), "172.15 is not private");
   Check(NormalizeBaseUrl("http://192.169.0.1").empty(), "192.169 is not private");
   Check(NormalizeBaseUrl("ftp://host").empty(), "other schemes are refused");
-  Check(NormalizeBaseUrl("gw2.rauwman.org").empty(), "a scheme is required");
+  Check(NormalizeBaseUrl("leaderboard.example.org").empty(), "a scheme is required");
   Check(NormalizeBaseUrl("https://").empty(), "a host is required");
   Check(NormalizeBaseUrl("").empty() && NormalizeBaseUrl("   ").empty(), "empty is unusable");
   Check(NormalizeBaseUrl("https://host/a b").empty(), "spaces inside are refused");
