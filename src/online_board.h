@@ -104,6 +104,9 @@ class BoardCache {
 
   void Refresh();
   std::shared_ptr<const BoardsSnapshot> Snapshot() const;
+  // Waits until the server has answered once (boards, "unchanged", a refusal or a failure) or `timeout_ms` passed.
+  // For the one early question that cannot be answered later; never for a screen that can wait.
+  bool WaitForFirstAnswer(int timeout_ms) const;
 
   // For tests and diagnostics.
   int Fetches() const;
@@ -118,6 +121,8 @@ class BoardCache {
   BoardTiming timing_;
 
   mutable std::mutex mutex_;
+  mutable std::condition_variable answered_;
+  int attempts_ = 0;  // finished fetches, whatever their result
   std::condition_variable wake_;
   bool stop_ = false;
   bool wanted_ = true;
@@ -140,9 +145,8 @@ class RemoteLeaderboard final : public live::BoardSource {
   const live::LocalUser& user() const override { return local_.user(); }
   live::StatsView Ranked(uint32_t view, uint32_t first_rank, uint32_t max_rows) const override;
   live::StatsView Around(uint32_t view, uint64_t xuid, uint32_t max_rows) const override;
-  live::StatsView Selected(uint32_t view, const std::vector<uint64_t>& xuids) const override {
-    return local_.Selected(view, xuids);
-  }
+  live::StatsView Selected(uint32_t view, const std::vector<uint64_t>& xuids) const override;
+  std::vector<live::FriendInfo> Friends() const override;
 
  private:
   live::StatsView Combined(uint32_t view, const BoardsSnapshot& boards) const;

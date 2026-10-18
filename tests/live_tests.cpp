@@ -449,7 +449,65 @@ static void TestBestAllAndName() {
   Check(view.rows.size() == 1 && view.rows[0].gamertag == "Yann R", "rows carry the online name once it is set");
 }
 
+// A board whose friends are fixed.
+class FriendsBoard final : public BoardSource {
+ public:
+  explicit FriendsBoard(std::vector<FriendInfo> friends) : friends_(std::move(friends)) {}
+  const LocalUser& user() const override { return user_; }
+  StatsView Ranked(uint32_t, uint32_t, uint32_t) const override { return {}; }
+  StatsView Around(uint32_t, uint64_t, uint32_t) const override { return {}; }
+  StatsView Selected(uint32_t, const std::vector<uint64_t>&) const override { return {}; }
+  std::vector<FriendInfo> Friends() const override { return friends_; }
+
+ private:
+  LocalUser user_;
+  std::vector<FriendInfo> friends_;
+};
+
+static void TestFriends() {
+  Mem m;
+  EnumeratorRegistry registry;
+  const uint32_t size_ptr = 0x3000, handle_ptr = 0x3004, buffer = 0x4000, items_ptr = 0x3008, overlapped = 0x3100;
+  uint32_t handle = 0;
+
+  FriendsBoard nobody({});
+  Check(!CreateFriendsEnumerator(m.base(), registry, nobody, 100, size_ptr, handle_ptr),
+        "no friends: not handled, the runtime answers");
+  FriendsBoard board({{0xE00000000001ull, "Anna"}, {0xE00000000002ull, "A very long gamertag"}, {0xE00000000003ull, "Bo"}});
+  Check(!CreateFriendsEnumerator(m.base(), registry, board, 100, 0, handle_ptr) &&
+            !CreateFriendsEnumerator(m.base(), registry, board, 100, size_ptr, 0),
+        "missing output pointers are refused");
+  Check(CreateFriendsEnumerator(m.base(), registry, board, 2, size_ptr, handle_ptr, &handle), "friends enumerator created");
+  Check(m.U32(size_ptr) == 2 * kFriendSize && m.U32(handle_ptr) == handle && handle >= EnumeratorRegistry::kHandleBase,
+        "size covers the first two friends, the handle is ours");
+
+  const auto query = registry.Take(handle);
+  Check(query && query->kind == StatsQuery::Kind::kFriends && query->friends.size() == 2, "the query keeps two friends");
+  m.Fill(buffer, 2 * kFriendSize + 8, 0xCD);
+  Check(ServeEnumeration(m.base(), board, *query, buffer, kFriendSize, items_ptr, 0) == kErrorInsufficientBuffer &&
+            m.U32(items_ptr) == 0,
+        "a buffer too small for the friends is refused");
+  Check(ServeEnumeration(m.base(), board, *query, buffer, 2 * kFriendSize, items_ptr, overlapped) == kErrorIoPending &&
+            m.U32(items_ptr) == 2 && m.U32(overlapped + 4) == 2,
+        "friends are served and the overlapped carries the count");
+  Check(m.U64(buffer) == 0xE00000000001ull && std::string(reinterpret_cast<char*>(m.base() + buffer + 8)) == "Anna" &&
+            m.U32(buffer + 24) == 0,
+        "first friend: xuid, name, state 0");
+  Check(m.U64(buffer + kFriendSize) == 0xE00000000002ull &&
+            std::string(reinterpret_cast<char*>(m.base() + buffer + kFriendSize + 8)) == "A very long gam" &&
+            m.base()[buffer + kFriendSize + 8 + 15] == 0,
+        "second friend: xuid, name cut to 15 characters");
+  Check(m.base()[buffer + 2 * kFriendSize] == 0xCD, "nothing is written past the friends");
+  Check(!registry.Take(handle), "the handle is used once");
+
+  Check(ReadStatsSize(1, 1) == kResultsHeaderSize + kViewSize + kRowSize &&
+            ReadStatsSize(2, 4) == kResultsHeaderSize + 2 * (kViewSize + 4 * kRowSize) &&
+            ReadStatsSize(1, 0) == ReadStatsSize(1, 1),
+        "read size: one row per player and view");
+}
+
 int main() {
+  TestFriends();
   TestBestAllAndName();
   TestLocalStats();
   TestCorruptAndEdited();

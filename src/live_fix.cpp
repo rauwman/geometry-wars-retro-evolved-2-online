@@ -227,6 +227,24 @@ REX_HOOK_RAW(sub_82095718) {
   if (!CreateStatsEnumerator(ctx, base, StatsQuery::Kind::kAround)) __imp__sub_82095718(ctx, base);
 }
 
+// XFriendsCreateEnumerator(user, first, max, size ptr, handle ptr): the game's friend list is empty (ReXGlue fails the
+// call). With a board, the server's players are the friends, so the game asks for their scores itself.
+REX_EXTERN(__imp__sub_820E8A98);
+REX_HOOK_RAW(sub_820E8A98) {
+  if (Services* services = Active()) {
+    const BoardSource& source = *services->source.load(std::memory_order_acquire);
+    uint32_t handle = 0;
+    if (CreateFriendsEnumerator(base, services->enumerators, source, ctx.r5.u32, ctx.r6.u32, ctx.r7.u32, &handle)) {
+      REXLOG_INFO("Leaderboard: friend list with {} player(s) handed to the game", LoadBE32(base, ctx.r6.u32) / kFriendSize);
+      ctx.r3.u64 = kErrorSuccess;
+      return;
+    }
+    REXLOG_INFO("Leaderboard: friend list asked for, no players to give ({} max, size ptr {:08X}, handle ptr {:08X})",
+                ctx.r5.u32, ctx.r6.u32, ctx.r7.u32);
+  }
+  __imp__sub_820E8A98(ctx, base);
+}
+
 // XEnumerate(handle, buffer, size, items, overlapped). Other handles (friends, achievements) are
 // ReXGlue's.
 REX_EXTERN(__imp__sub_820958D0);
@@ -258,9 +276,15 @@ REX_HOOK_RAW(sub_820955D0) {
     REXLOG_INFO("Leaderboard read: {} xuid(s), {} view(s), buffer {} bytes, results {}", xuid_count, spec_count,
                 size_ptr ? LoadBE32(base, size_ptr) : 0, results ? "given" : "none");
   }
+  if (services && !results && size_ptr && xuid_count > 1 && spec_count && spec_count <= kMaxSpecs &&
+      Succeeded(ctx, base, overlapped)) {
+    // Every player may have a row in each view; make sure the game's buffer has room for them.
+    const uint32_t wanted = ReadStatsSize(spec_count, xuid_count);
+    if (wanted > LoadBE32(base, size_ptr)) StoreBE32(base, size_ptr, wanted);
+  }
   if (!services || !results || !size_ptr || !Succeeded(ctx, base, overlapped)) return;
 
-  ServeReadStats(base, services->board, xuid_count, xuids, spec_count, specs, LoadBE32(base, size_ptr), results);
+  ServeReadStats(base, *services->source.load(std::memory_order_acquire), xuid_count, xuids, spec_count, specs, LoadBE32(base, size_ptr), results);
 }
 
 // XamShowAchievementsUI(user): opens the achievements overlay instead of ReXGlue's stub.

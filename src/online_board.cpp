@@ -369,6 +369,12 @@ std::shared_ptr<const BoardsSnapshot> BoardCache::Snapshot() const {
   return snapshot_;
 }
 
+bool BoardCache::WaitForFirstAnswer(int timeout_ms) const {
+  std::unique_lock lock(mutex_);
+  return answered_.wait_for(lock, std::chrono::milliseconds(timeout_ms), [this] { return attempts_ > 0 || stop_; }) &&
+         attempts_ > 0;
+}
+
 int BoardCache::Fetches() const {
   std::lock_guard lock(mutex_);
   return fetches_;
@@ -392,6 +398,8 @@ void BoardCache::Run() {
     const FetchResult result = FetchBoards(*transport_, config_.url, config_.token, etag);
 
     lock.lock();
+    ++attempts_;
+    answered_.notify_all();
     switch (result.kind) {
       case FetchKind::kUpdated:
         snapshot_ = result.snapshot;
@@ -443,6 +451,53 @@ live::StatsView RemoteLeaderboard::Around(uint32_t view, uint64_t xuid, uint32_t
     return empty;
   }
   return AroundWindow(Combined(view, *boards), xuid, max_rows);
+}
+
+// "Friends" are the server's other players. Their ids are the ones the combined boards give them, so a stats read
+// for them finds their rows.
+std::vector<live::FriendInfo> RemoteLeaderboard::Friends() const {
+  std::vector<live::FriendInfo> friends;
+  auto boards = cache_.Snapshot();
+  if (!boards) {
+    // The game asks for its friends once, right at the start, possibly before the first answer from the server.
+    cache_.WaitForFirstAnswer(2500);
+    boards = cache_.Snapshot();
+  }
+  if (!boards) return friends;
+  for (const auto& [id, board] : boards->views) {
+    for (const BoardRow& row : board.rows) {
+      if (row.xuid.empty() || row.xuid == boards->me) continue;
+      const uint64_t xuid = XuidFromHex(row.xuid);
+      const bool known = std::any_of(friends.begin(), friends.end(),
+                                     [&](const live::FriendInfo& f) { return f.xuid == xuid; });
+      if (!known) friends.push_back({xuid, row.name});
+    }
+  }
+  std::sort(friends.begin(), friends.end(),
+            [](const live::FriendInfo& a, const live::FriendInfo& b) { return a.name < b.name; });
+  if (friends.size() > live::kMaxEnumeratedRows) friends.resize(live::kMaxEnumeratedRows);
+  return friends;
+}
+
+// A read for specific players: their rows from the combined board, ranked as there. Players with no score in the
+// view have no row.
+live::StatsView RemoteLeaderboard::Selected(uint32_t view, const std::vector<uint64_t>& xuids) const {
+  const auto boards = cache_.Snapshot();
+  if (!boards) return local_.Selected(view, xuids);
+  live::StatsView all = Combined(view, *boards);
+  live::StatsView out;
+  out.id = view;
+  out.total_rows = all.total_rows;
+  for (const live::StatsRow& row : all.rows) {
+    if (std::find(xuids.begin(), xuids.end(), row.xuid) != xuids.end()) out.rows.push_back(row);
+  }
+  // Never played: the game still gets the player's own (unranked, zero) row, as offline.
+  const uint64_t self = local_.user().xuid;
+  const bool has_self = std::any_of(out.rows.begin(), out.rows.end(), [&](const live::StatsRow& r) { return r.xuid == self; });
+  if (!has_self) {
+    for (live::StatsRow& row : local_.Selected(view, xuids).rows) out.rows.push_back(std::move(row));
+  }
+  return out;
 }
 
 }  // namespace gw2::online

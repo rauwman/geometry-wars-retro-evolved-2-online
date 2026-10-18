@@ -167,8 +167,60 @@ uint32_t CreateEnumerator(uint8_t* base, EnumeratorRegistry& registry, StatsQuer
   return kErrorSuccess;
 }
 
+bool CreateFriendsEnumerator(uint8_t* base, EnumeratorRegistry& registry, const BoardSource& board, uint32_t max_rows,
+                             uint32_t size_ptr, uint32_t handle_ptr, uint32_t* handle_out) {
+  if (!size_ptr || !handle_ptr) return false;
+  std::vector<FriendInfo> friends = board.Friends();
+  const uint32_t limit = max_rows ? std::min(max_rows, kMaxEnumeratedRows) : kMaxEnumeratedRows;
+  if (friends.size() > limit) friends.resize(limit);
+  if (friends.empty()) return false;
+
+  StatsQuery query;
+  query.kind = StatsQuery::Kind::kFriends;
+  query.max_rows = limit;
+  const uint32_t size = static_cast<uint32_t>(friends.size()) * kFriendSize;
+  query.friends = std::move(friends);
+  const uint32_t handle = registry.Add(std::move(query));
+  StoreBE32(base, size_ptr, size);
+  StoreBE32(base, handle_ptr, handle);
+  if (handle_out) *handle_out = handle;
+  return true;
+}
+
+uint32_t ReadStatsSize(uint32_t spec_count, uint32_t xuid_count) {
+  const uint32_t rows = std::clamp<uint32_t>(xuid_count, 1, kMaxEnumeratedRows);
+  return kResultsHeaderSize + (kViewSize + kRowSize * rows) * spec_count;
+}
+
+namespace {
+
+// XONLINE_FRIEND: xuid, gamertag[16], state (0 = accepted, offline), the rest empty.
+uint32_t ServeFriends(uint8_t* base, const StatsQuery& query, uint32_t buffer, uint32_t size, uint32_t items_ptr,
+                      uint32_t overlapped) {
+  const uint32_t count = static_cast<uint32_t>(query.friends.size());
+  const uint32_t needed = count * kFriendSize;
+  const bool fits = buffer && size >= needed;
+  if (fits) {
+    std::memset(base + buffer, 0, needed);
+    for (uint32_t i = 0; i < count; ++i) {
+      const uint32_t at = buffer + i * kFriendSize;
+      StoreBE64(base, at, query.friends[i].xuid);
+      std::memcpy(base + at + 8, query.friends[i].name.data(), std::min<size_t>(query.friends[i].name.size(), 15));
+    }
+  }
+  const uint32_t result = fits ? kErrorSuccess : kErrorInsufficientBuffer;
+  const uint32_t items = fits ? count : 0;
+  if (items_ptr) StoreBE32(base, items_ptr, items);
+  if (!overlapped) return result;
+  CompleteOverlapped(base, overlapped, result, items);
+  return kErrorIoPending;
+}
+
+}  // namespace
+
 uint32_t ServeEnumeration(uint8_t* base, const BoardSource& board, const StatsQuery& query, uint32_t buffer,
                           uint32_t size, uint32_t items_ptr, uint32_t overlapped) {
+  if (query.kind == StatsQuery::Kind::kFriends) return ServeFriends(base, query, buffer, size, items_ptr, overlapped);
   std::vector<StatsView> views;
   for (const uint32_t view : query.views) {
     views.push_back(query.kind == StatsQuery::Kind::kRanked

@@ -277,6 +277,7 @@ static void TestLeaderboard() {
     Check(early.rows.size() <= 1, "before the boards arrive, only the player's own row");
   }
   Check(WaitFor([&] { return cache.Snapshot() != nullptr; }), "boards arrived");
+  Check(cache.WaitForFirstAnswer(10), "an answered cache does not make a caller wait");
 
   live::StatsView v = board.Ranked(0, 1, 10);
   Check(v.rows.size() == 3 && v.rows[0].gamertag == "Anna" && v.rows[1].gamertag == "Yann R" && v.rows[1].rating == 500 &&
@@ -292,7 +293,52 @@ static void TestLeaderboard() {
   v = board.Ranked(2, 1, 10);
   Check(v.rows.empty() && v.id == 2, "a view nobody has scored in");
   v = board.Selected(0, {kLocal});
-  Check(v.rows.size() == 1 && v.rows[0].rating == 2000, "the player's own stats are the local ones");
+  Check(v.rows.size() == 1 && v.rows[0].rating == 2000 && v.rows[0].xuid == kLocal,
+        "the player's own stats: one row, local id");
+  const auto friends = board.Friends();
+  Check(friends.size() == 2 && friends[0].name == "Anna", "the other server players are the friends");
+  v = board.Selected(0, {kLocal, friends[0].xuid});
+  Check(v.rows.size() == 2 && v.rows[0].xuid == kLocal && v.rows[0].rank == 1 && v.rows[1].gamertag == "Anna" && v.rows[1].rank == 2,
+        "a read for the player and a friend returns both, ranked as on the board");
+  v = board.Selected(2, {kLocal});
+  Check(v.rows.size() == 1 && v.rows[0].xuid == kLocal, "a view nobody played still gets the player's own row");
+  v = board.Selected(0, {12345});
+  Check(v.rows.empty(), "a stranger has no row");
+  fs::remove_all(dir);
+}
+
+static void TestEarlyFriends() {
+  Section("friends asked for at startup");
+  const fs::path dir = fs::temp_directory_path() / "gw2_board_early_tests";
+  fs::remove_all(dir);
+  LocalStats stats(dir / "stats.toml");
+  stats.Load();
+  const uint64_t kLocal = 0xB13EBABEBABEBABEull;
+  live::LocalLeaderboard local(stats, {kLocal, "User"});
+  const ClientConfig config{"https://s", "tok"};
+
+  // The server answers a little late: the question waits for it and gets the players.
+  {
+    auto transport = std::make_unique<FakeTransport>([](const HttpRequest&, int) {
+      std::this_thread::sleep_for(150ms);
+      return Answer(200, kBoards, "\"7-100\"");
+    });
+    BoardCache cache(config, std::move(transport), nullptr, {60000});
+    RemoteLeaderboard board(local, cache, "Yann R", [](uint32_t) { return std::optional<int64_t>(); });
+    const auto start = std::chrono::steady_clock::now();
+    const auto friends = board.Friends();
+    Check(friends.size() == 2, "a slow first answer still gives the friends");
+    Check(std::chrono::steady_clock::now() - start < 2000ms, "and does not wait the whole limit");
+  }
+  // The server is down: an answer (a failure) ends the wait at once and there are no friends.
+  {
+    auto transport = std::make_unique<FakeTransport>([](const HttpRequest&, int) { return Answer(0); });
+    BoardCache cache(config, std::move(transport), nullptr, {60000});
+    RemoteLeaderboard board(local, cache, "Yann R", [](uint32_t) { return std::optional<int64_t>(); });
+    const auto start = std::chrono::steady_clock::now();
+    Check(board.Friends().empty(), "no connection: no friends");
+    Check(std::chrono::steady_clock::now() - start < 2000ms, "a failed answer ends the wait early");
+  }
   fs::remove_all(dir);
 }
 
@@ -304,6 +350,7 @@ int main() {
   TestFetch();
   TestCache();
   TestLeaderboard();
+  TestEarlyFriends();
   std::printf("\n%s: %d failure(s)\n", g_failures ? "ONLINE BOARD TESTS FAILED" : "ONLINE BOARD TESTS OK", g_failures);
   return g_failures ? 1 : 0;
 }
