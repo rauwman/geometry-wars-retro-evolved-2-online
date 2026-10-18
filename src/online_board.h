@@ -28,7 +28,9 @@ struct JsonValue {
   int64_t number = 0;
   std::string text;
   std::vector<JsonValue> items;
-  std::vector<std::pair<std::string, JsonValue>> members;
+  // Object members as two parallel lists: a std::pair of an incomplete JsonValue does not compile with libstdc++.
+  std::vector<std::string> member_names;
+  std::vector<JsonValue> member_values;
 
   const JsonValue* Find(std::string_view key) const;
 };

@@ -128,7 +128,8 @@ class JsonReader {
         if (pos_ >= text_.size() || text_[pos_++] != ':') return false;
         JsonValue member;
         if (!Value(member, depth + 1)) return false;
-        out.members.emplace_back(std::move(key), std::move(member));
+        out.member_names.push_back(std::move(key));
+        out.member_values.push_back(std::move(member));
         Skip();
         if (pos_ >= text_.size()) return false;
         const char next = text_[pos_++];
@@ -179,8 +180,8 @@ class JsonReader {
 }  // namespace
 
 const JsonValue* JsonValue::Find(std::string_view key) const {
-  for (const auto& [name, value] : members) {
-    if (name == key) return &value;
+  for (size_t i = 0; i < member_names.size(); ++i) {
+    if (member_names[i] == key) return &member_values[i];
   }
   return nullptr;
 }
@@ -201,7 +202,9 @@ std::optional<BoardsSnapshot> ParseBoards(std::string_view json) {
   }
   if (const JsonValue* me = root->Find("me"); me && me->type == JsonValue::Type::kString) out.me = me->text;
 
-  for (const auto& [key, board] : views->members) {
+  for (size_t member = 0; member < views->member_names.size(); ++member) {
+    const std::string& key = views->member_names[member];
+    const JsonValue& board = views->member_values[member];
     if (board.type != JsonValue::Type::kObject || key.empty() || key.size() > 3) continue;
     uint32_t id = 0;
     bool numeric = true;
