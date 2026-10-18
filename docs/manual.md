@@ -21,12 +21,24 @@
 > leaderboard screens. Everything else is the original port, with all credit to its author. See
 > [docs/online.md](online.md). Without a server address the game stays fully offline, as before.
 
+
+## What's new in v0.4.0
+
+- **Controller vibration** for gameplay events (bombs, deaths, shield hits, gates and more). It is **Off by default**: turn it on under **Controls > Vibration**.
+- **Aspect Ratio** options, including 21:9 Ultrawide and 32:9 Super Ultrawide
+- **Internal render resolution** at 100%, 75% or 50%
+- **Graphics card** selection on Windows
+- optional **render resolution in the window title**
+- a Linux game-timing change for [Issue #1](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/issues/1), and an AppImage that starts by itself when FUSE cannot mount it
+
+The full list is in the [v0.4.0 release notes](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/releases/tag/v0.4.0).
 ## Features
 
+- Controller vibration for gameplay events, off by default (Controls > Vibration). It is a PC-port addition, not a restored original feature
 - Native static recompilation for Windows, plus an experimental native Linux / Steam Deck AppImage
 - TRG launcher that installs the game from your own package and remembers its window position, size, maximized and fullscreen state
 - High frame rate support: 30, 60 (the original), 90, 120, 144, 165, 240 or Unlimited, without speeding up the game
-- Render resolution up to 4x (5120×2880), FXAA, 2x or 4x (Compatibility) multisampling, texture filtering up to 16x, VSync and aspect ratio options
+- Render resolution up to 4x (5120×2880), internal render resolution (100%, 75% or 50%), graphics card choice on Windows, FXAA, 2x or 4x (Compatibility) multisampling, texture filtering up to 16x, VSync and native aspect ratios (16:9, 16:10, 21:9, 32:9, 4:3, 5:4)
 - Improved frame pacing and performance, with less unnecessary GPU and CPU work, especially at higher render resolutions
 - Automatic discrete-GPU preference on hybrid systems, and a more reliable Exit Game
 - Frame rate in the window title, and an in-game frame rate counter (**F2**)
@@ -56,7 +68,7 @@ The launcher checks the Title ID and content type when you pick the package, and
 
 ## Installing
 
-1. Download **GeometryWarsRetroEvolved2-v0.3.1-windows-x64-modded-v0.1.0.zip** from the [latest release](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/releases/latest) and extract it anywhere you can write to.
+1. Download **GeometryWarsRetroEvolved2-v0.4.0-windows-x64-modded-v0.1.1.zip** from the [latest release](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/releases/latest) and extract it anywhere you can write to.
 2. Run **geometry_wars_retro_evolved_2.exe**. The launcher opens.
 3. On the **Play** page click **Install from package...** and pick your package. It is one file with a long hexadecimal name and no extension. On an Xbox 360 drive it is in `Content\0000000000000000\584108FF\000D0000\`.
 4. Wait until **Ready to play** appears. The game files are copied into the `game` folder next to the program. The package file itself is not copied there.
@@ -74,8 +86,9 @@ Your settings, profile, scores, achievements, saves and progression, and the sha
 
 ### Linux and Steam Deck
 
-**Experimental.** This is a native Linux build (ReXGlue's Linux runtime with Vulkan), not Proton or Wine. Real-hardware testing so far is one report from a Steam Machine ([#1](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/issues/1)), which found a very dark image and slow motion while the frame rate shows 60. The dark image was fixed in v0.2.3, and the reporter confirmed it. The reporter's remaining problem is a frame rate that often sits around 30 with the game running correspondingly slowly. v0.3.1 fixes the game speed part: at the 60 FPS setting the game no longer slows down when frames miss vblanks. Why some Linux systems render around 30 FPS is still under investigation, and the fix has not been confirmed on the reporter's hardware yet.
+**Experimental.** This is a native Linux build (ReXGlue's Linux runtime with Vulkan), not Proton or Wine. Real-hardware testing so far is one report from a Steam Machine ([#1](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/issues/1)), which found a very dark image and slow motion while the frame rate shows 60. The dark image was fixed in v0.2.3, and the reporter confirmed it. At about 30 FPS the game speed was mostly correct in v0.3.1, but short speed-ups were still seen when the frame rate rose toward about 45 FPS. v0.4.0 changes the game's timing to address that, but **it has not been confirmed on the affected Linux machine yet**, and why some Linux systems render around 30 FPS is still under investigation.
 
+If FUSE cannot mount the AppImage (for example in a restricted environment), it unpacks itself into a private temporary folder and runs from there. You do not need `APPIMAGE_EXTRACT_AND_RUN=1`.
 1. Download **GeometryWarsRetroEvolved2Recompiled-v…-x86_64.AppImage** from the release and mark it executable (right-click > **Properties** > **Permissions** > **Is executable**, or `chmod +x`).
 2. Run it, then install your package from the **Play** page as above. The game files go in a `game` folder next to the AppImage. The package picker needs `zenity` or `kdialog`.
 3. On a Steam Deck (intended flow, not yet tried on a Deck), do this in **Desktop Mode**, then add the AppImage with **Games > Add a Non-Steam Game to My Library** and play it from **Game Mode**.
@@ -100,12 +113,14 @@ The launcher opens before the game. Your choices are saved to `settings.toml` in
 - **Display mode**: Windowed or Borderless Fullscreen. Press **F11** while playing to switch between them. In fullscreen the mouse cursor hides after about 5 seconds without movement and returns as soon as the mouse moves. The launcher always shows it.
 - **Window size** and **Monitor**
 - **VSync** on or off
-- **Aspect ratio**: Letterbox 16:9 keeps the game's picture on any window shape; Stretch fills the window
+- **Aspect Ratio**: 16:9 Original, 16:10, 21:9 Ultrawide, 32:9 Super Ultrawide, 4:3 or 5:4. The game renders in that shape (720 lines, the width follows the format) instead of stretching, and Window size lists the sizes of the chosen format. Render resolution and Internal render resolution scale from it. A window of another shape shows black bars
 
-Window size, monitor and VSync take effect when you press **PLAY**. If one differs from the launcher's window, the game restarts once in a new window.
+Window size, monitor, VSync, Aspect Ratio and graphics card take effect when you press **PLAY**. If one differs from the launcher's window, the game restarts once in a new window.
 
 ### Graphics
-- **Render resolution**: Original (1280×720), 2x (2560×1440, recommended for 1440p), 3x (3840×2160) or 4x (5120×2880)
+- **Graphics card** (Windows): Automatic (recommended) or a specific GPU
+- **Render resolution**: Original (1280×720), 2x (2560×1440, recommended for 1440p), 3x (3840×2160) or 4x (5120×2880) at 16:9; the other Aspect Ratios change the width
+- **Internal render resolution**: 100% Native, 75% Performance or 50% Low-end. The GPU draws the game at that share of the Render resolution and scales it up, which lowers the GPU work at some cost in sharpness
 - **Anti-aliasing**: Off, FXAA or FXAA Extreme
 - **Multisampling**: 2x MSAA (default), or 4x MSAA (Compatibility) if 2x shows graphics problems on your GPU or driver
 - **Texture filtering**: Game, Off, 2x, 4x, 8x or 16x
@@ -114,6 +129,7 @@ Window size, monitor and VSync take effect when you press **PLAY**. If one diffe
 ### Gameplay
 - **Frame rate**: 30, 60, 90, 120, 144, 165, 240 or Unlimited. 60 is the original game and the default. The game's speed stays the same at every rate; a slower graphics card or heavier graphics settings lower the frame rate without changing the speed.
 - **Frame rate in title**: shows the frame rate in the window title, for example `Geometry Wars: Retro Evolved 2 | FPS: 60.00`
+- **Render resolution in title**: shows the render resolution in the window title, for example `Geometry Wars: Retro Evolved 2 | 2560x1440` at 2x on 16:9. It is off by default; with both title options on, the resolution comes before the frame rate.
 - **Frame counter**: shows the frame rate in the corner of the window. Press **F2** while playing to show or hide it.
 
 ### Cheats
@@ -126,6 +142,7 @@ All three are Off by default. The launcher's Cheats page saves them and they tak
 ### Controls
 - Xbox controllers work without setup
 - **Keyboard**: enabled or disabled. When enabled, the keyboard and mouse emulate the controller, and the keys are listed on the page.
+- **Vibration**: Off or On (controller rumble). Off by default, with no strength setting. When On, the controller vibrates for bombs, deaths, respawns, game over, extra lives and bombs, shield hits, the King zone, Gravity Well explosions and overloads, and gate crossings. Windows has been tested with a physical controller; Linux and Steam Deck vibration has not been confirmed on real hardware yet.
 - Online multiplayer is not supported.
 
 ### Achievements

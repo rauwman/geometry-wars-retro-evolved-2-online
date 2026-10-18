@@ -1,14 +1,15 @@
 #include "frame_limiter.h"
 
+#include <algorithm>
 #include <bit>
+#include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <optional>
 
-#include <rex/cvar.h>
 #include <rex/hook.h>
 
 #include "guest_memory.h"
-#include "launcher_cvars.h"
 
 namespace gw2 {
 namespace {
@@ -22,18 +23,13 @@ FrameLimiter g_limiter;
 struct GameDeltaState {
   std::optional<uint32_t> original_bits;
   std::optional<LimiterClock::time_point> previous_frame;
-  GameStepCounter steps;
+  GameDeltaClock clock;
   bool modified = false;
 };
 
 GameDeltaState g_delta;
 
 }  // namespace
-
-int ConfiguredFrameRate() {
-  const int fps = REXCVAR_GET(gw2_frame_rate);
-  return IsFrameRateChoice(fps) ? fps : kFrameRateDefault;
-}
 
 void PaceGuestFrame() {
   if (const auto deadline = g_limiter.Next(ProjectLimiterRate(ConfiguredFrameRate()), LimiterClock::now())) {
@@ -53,14 +49,12 @@ void SyncGameDelta(uint8_t* base, LimiterClock::time_point now) {
   const int fps = ConfiguredFrameRate();
   const auto previous = state.previous_frame;
   state.previous_frame = now;
+  const float original = std::bit_cast<float>(*state.original_bits);
+  const double interval = previous ? std::chrono::duration<double>(now - *previous).count() : 0.0;
   if (KeepsOriginalGameDelta(fps)) {
-    const float original = std::bit_cast<float>(*state.original_bits);
-    int steps = 1;
     if (previous && original > 0.0f) {
-      steps = state.steps.Take(std::chrono::duration<double>(now - *previous).count() / original);
-    }
-    if (steps > 1) {
-      StoreBE32(base, kGameDeltaAddress, std::bit_cast<uint32_t>(original * float(steps)));
+      const double delta = state.clock.Take(interval, original);
+      StoreBE32(base, kGameDeltaAddress, std::bit_cast<uint32_t>(float(delta)));
       state.modified = true;
     } else if (state.modified) {
       StoreBE32(base, kGameDeltaAddress, *state.original_bits);
@@ -68,11 +62,11 @@ void SyncGameDelta(uint8_t* base, LimiterClock::time_point now) {
     }
     return;
   }
-  state.steps.Reset();
+  state.clock.Reset();
   if (!previous) {
     return;
   }
-  const float delta = GameFrameDelta(std::chrono::duration<double>(now - *previous).count());
+  const float delta = GameFrameDelta(interval);
   StoreBE32(base, kGameDeltaAddress, std::bit_cast<uint32_t>(delta));
   state.modified = true;
 }
