@@ -33,7 +33,7 @@ existed before the account was made are uploaded once, as they are.
 
 ## For the person who runs the server
 
-The server is a separate project (`gw2-leaderboard`: FastAPI + SQLite, one Docker container behind HTTPS).
+The server is a separate project, [gw2-leaderboard](https://github.com/rauwman/gw2-leaderboard) (FastAPI + SQLite, one Docker container behind HTTPS). Its README explains what it assumes you already know: running Docker and publishing it safely behind a reverse proxy and your own domain.
 
 A public release carries no server address and no invite code. There are two ways to get them to your players:
 
@@ -44,12 +44,16 @@ A public release carries no server address and no invite code. There are two way
    .\tools\package-release.ps1 -ServerUrl https://gw2.example.org -InviteCode the-shared-invite-code
    ```
 
-   The result is `dist\GeometryWarsRetroEvolved2-v<version>-windows-x64-friends.zip`. Share it privately only: the
+   The result is `dist\GeometryWarsRetroEvolved2-v<version>-windows-x64-modded-v<mod version>-friends.zip`. Share it privately only: the
    invite code can be read from the file. The normal `package-release.ps1` run (no parameters) refuses to package a
    build whose configuration holds an address or a code, so a public ZIP cannot carry them by accident.
 
 Do not commit the invite code to a public repository. Plain `http://` is accepted only for `localhost` and private
 network addresses, for testing.
+
+## On Linux and Steam Deck
+
+The Linux build talks to the server through the system `libcurl.so.4` (loaded when needed, so the game starts without it). A Steam Deck and most distributions have it; otherwise install your distribution's libcurl package. The Online page works as on Windows, and the Paste and Copy buttons use the system clipboard. In Gaming Mode the Steam Deck has no keyboard shortcut for pasting into the launcher, so use the buttons. This is untested on real hardware so far.
 
 ## What the game shows
 

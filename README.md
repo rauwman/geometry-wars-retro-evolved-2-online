@@ -21,7 +21,7 @@ This is an unofficial fan-made fork of [saulob/geometry-wars-retro-evolved-2-rec
 - **Account key.** Copy your private key on the Online page; after a reinstall, paste it under **Restore** to get your name back.
 - **Nothing blocks the game.** Without a server or a connection the game shows your own scores, as before.
 
-A server is **not** included and not hosted for you: someone you know has to run one. See [docs/online.md](docs/online.md).
+A server is **not** included and not hosted for you: someone you know has to run one. The server is a separate project, **[gw2-leaderboard](https://github.com/rauwman/gw2-leaderboard)** (a Docker image; running it and putting it safely on the internet behind HTTPS is up to you). How the game side works: [docs/online.md](docs/online.md).
 
 ## Vibe-coded
 
@@ -33,11 +33,12 @@ A server is **not** included and not hosted for you: someone you know has to run
 
 You need Windows 10 or 11 (64-bit), a DirectX 12 graphics card and **your own Geometry Wars: Retro Evolved 2 Xbox Live Arcade package**. Extract the ZIP, run `geometry_wars_retro_evolved_2.exe` and install the game from your package on the launcher's **Play** page. The exact game version, launcher pages, saves and troubleshooting are in the [full manual](docs/manual.md).
 
-**Windows only for now.** The Linux and Steam Deck build of upstream is described in the manual; the friends leaderboard does not work there yet.
+**Linux / Steam Deck (experimental, untested):** the native build of upstream is described in the manual. The friends leaderboard is built into it too (it needs the system `libcurl.so.4`), but the fork only ships a Windows ZIP so far.
 
 ## More
 
 - [Full manual](docs/manual.md): requirements, installing, launcher, cheats, building it yourself
+- [Leaderboard server](https://github.com/rauwman/gw2-leaderboard) (Docker)
 - [Friends leaderboard](docs/online.md) and [making a release](docs/releasing.md)
 - [Upstream project](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled)
 
