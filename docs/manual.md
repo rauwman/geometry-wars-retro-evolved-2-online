@@ -80,7 +80,7 @@ Your settings, profile, scores, achievements, saves and progression, and the sha
 2. Run it, then install your package from the **Play** page as above. The game files go in a `game` folder next to the AppImage. The package picker needs `zenity` or `kdialog`.
 3. On a Steam Deck (intended flow, not yet tried on a Deck), do this in **Desktop Mode**, then add the AppImage with **Games > Add a Non-Steam Game to My Library** and play it from **Game Mode**.
 
-The friends leaderboard is not available in the Linux build yet.
+The friends leaderboard (fork feature, [docs/online.md](online.md)) is built into the Linux build too. It needs the system `libcurl.so.4`, which a Steam Deck and most distributions have. It is untested on real hardware so far.
 
 Settings and saves are in `user_data` and logs in `logs`, both next to the AppImage file (not inside it). Requirements, known limits and building the AppImage are in [docs/linux.md](linux.md).
 

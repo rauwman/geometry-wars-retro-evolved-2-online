@@ -91,6 +91,8 @@ target_link_libraries(geometry_wars_retro_evolved_2 PRIVATE trg::launcher)
 if(WIN32)
     target_link_libraries(geometry_wars_retro_evolved_2 PRIVATE bcrypt shcore synchronization winhttp)
 else()
+    # libcurl is loaded at run time through dlopen (src/online_http.cpp); older glibc keeps dlopen in libdl.
+    target_link_libraries(geometry_wars_retro_evolved_2 PRIVATE ${CMAKE_DL_LIBS})
     # The SDK stages the runtime beside the program only on Windows and macOS; the RPATH is $ORIGIN.
     add_custom_command(TARGET geometry_wars_retro_evolved_2 POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different

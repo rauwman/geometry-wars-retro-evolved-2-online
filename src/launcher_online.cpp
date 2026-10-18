@@ -14,6 +14,8 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#else
+#include <SDL3/SDL.h>
 #endif
 
 #include <rex/logging.h>
@@ -51,6 +53,11 @@ std::string ClipboardLine() {
     }
     CloseClipboard();
   }
+#else
+  if (char* clip = SDL_GetClipboardText()) {
+    text = clip;
+    SDL_free(clip);
+  }
 #endif
   const size_t end_of_line = text.find_first_of("\r\n");
   if (end_of_line != std::string::npos) text.resize(end_of_line);
@@ -60,7 +67,7 @@ std::string ClipboardLine() {
   return text.substr(first, text.find_last_not_of(kSpace) - first + 1);
 }
 
-// Puts text on the Windows clipboard. False when that fails (or off Windows).
+// Puts text on the system clipboard. False when that fails.
 bool SetClipboardText(const std::string& text) {
 #if defined(_WIN32)
   const int wide_size = MultiByteToWideChar(CP_UTF8, 0, text.c_str(), -1, nullptr, 0);
@@ -80,8 +87,7 @@ bool SetClipboardText(const std::string& text) {
   }
   return done;
 #else
-  (void)text;
-  return false;
+  return SDL_SetClipboardText(text.c_str());
 #endif
 }
 
