@@ -23,7 +23,7 @@ class OnlinePage {
   void Poll();
 
  private:
-  enum class Kind { kCheck, kRegister, kRename };
+  enum class Kind { kCheck, kRegister, kRename, kRestore };
 
   struct Outcome {
     Kind kind = Kind::kCheck;
@@ -41,6 +41,7 @@ class OnlinePage {
   void StartCheck();
   void StartRegister();
   void StartRename();
+  void StartRestore();
   void SignOut();
   void Say(std::string text, bool good);
 
@@ -49,6 +50,7 @@ class OnlinePage {
   char name_[64] = {};
   char url_[512] = {};
   char invite_[128] = {};
+  char key_[256] = {};
 
   double edited_at_ = 0.0;
   std::string checked_name_;  // the name and server the last finished check was about

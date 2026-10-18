@@ -16,6 +16,16 @@ the upload is retried with growing pauses; nothing slows the game down. **Change
 
 Keep `settings.toml` private: the token in it is the key to your account. Reset to defaults leaves the account alone.
 
+### Getting your name back after a reinstall
+
+Your name belongs to a private account key that lives in the game's settings. Before you delete or reinstall the game,
+open the Online page and press **Copy account key**; keep the key somewhere private (a password manager). In the new
+installation, enter the same server address, paste the key under **Restore** and press **Restore account**. You keep
+your name, and your best scores upload again the next time you finish a game.
+
+Lost the key? Ask the person who runs the server: `python -m gw2lb.admin rotate-token <name>` prints a new key (the old
+one stops working), which you paste the same way.
+
 ### Scores earned with cheats
 
 A game in which a cheat was in effect at any point is not uploaded; the score still counts on this PC. Scores that

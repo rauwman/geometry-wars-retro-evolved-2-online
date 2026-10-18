@@ -60,6 +60,31 @@ std::string ClipboardLine() {
   return text.substr(first, text.find_last_not_of(kSpace) - first + 1);
 }
 
+// Puts text on the Windows clipboard. False when that fails (or off Windows).
+bool SetClipboardText(const std::string& text) {
+#if defined(_WIN32)
+  const int wide_size = MultiByteToWideChar(CP_UTF8, 0, text.c_str(), -1, nullptr, 0);
+  if (wide_size <= 0) return false;
+  bool done = false;
+  if (OpenClipboard(nullptr)) {
+    if (const HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, static_cast<SIZE_T>(wide_size) * sizeof(wchar_t))) {
+      if (auto* wide = static_cast<wchar_t*>(GlobalLock(memory))) {
+        MultiByteToWideChar(CP_UTF8, 0, text.c_str(), -1, wide, wide_size);
+        GlobalUnlock(memory);
+        EmptyClipboard();
+        done = SetClipboardData(CF_UNICODETEXT, memory) != nullptr;
+      }
+      if (!done) GlobalFree(memory);
+    }
+    CloseClipboard();
+  }
+  return done;
+#else
+  (void)text;
+  return false;
+#endif
+}
+
 // A text field with a Paste button beside it. Returns 1 when the field was edited, 2 when text was pasted.
 int PasteField(const char* id, const char* hint, char* buffer, size_t size, bool disabled, int flags = 0) {
   const ImGuiStyle& style = ImGui::GetStyle();
@@ -136,6 +161,23 @@ void OnlinePage::StartRegister() {
   if (started) outcome_ = std::move(outcome);
 }
 
+void OnlinePage::StartRestore() {
+  auto outcome = std::make_shared<Outcome>();
+  outcome->kind = Kind::kRestore;
+  outcome->url = ServerUrl();
+  const std::string key = key_;
+  Say("Restoring your account...", true);
+  const bool started = task_.Start("Restoring online account...", [outcome, key](trg::Task&) {
+    const auto transport = online::MakeSystemTransport();
+    const online::RegisterResult result = online::Restore(*transport, outcome->url, key);
+    outcome->error = result.error;
+    outcome->message = result.message;
+    outcome->account = result.account;
+    return std::string();
+  });
+  if (started) outcome_ = std::move(outcome);
+}
+
 void OnlinePage::StartRename() {
   auto outcome = std::make_shared<Outcome>();
   outcome->kind = Kind::kRename;
@@ -192,6 +234,23 @@ void OnlinePage::Poll() {
       }
       checked_name_.clear();
       break;
+    case Kind::kRestore:
+      if (outcome->error != online::AccountError::kNone) {
+        Say(outcome->message.empty() ? online::DescribeError(outcome->error) : outcome->message, false);
+        break;
+      }
+      if (settings_.SaveNow({{kOnlineUrlKey, outcome->url},
+                             {kOnlineNameKey, outcome->account.name},
+                             {kOnlineTokenKey, outcome->account.token}})) {
+        CopyInto(name_, sizeof name_, outcome->account.name);
+        key_[0] = '\0';
+        Say("Welcome back, " + outcome->account.name + "! Your scores go to the leaderboard again.", true);
+        REXLOG_INFO("Online: restored the name \"{}\"", outcome->account.name);
+      } else {
+        Say("The account was found but could not be saved here. Check that the data folder is writable.", false);
+      }
+      checked_name_.clear();
+      break;
     case Kind::kRename:
       if (outcome->error != online::AccountError::kNone) {
         Say(outcome->message.empty() ? online::DescribeError(outcome->error) : outcome->message, false);
@@ -241,6 +300,13 @@ void OnlinePage::Draw(trg::Ui& ui) {
         PasteField("invite", "invite code", invite_, sizeof invite_, false, ImGuiInputTextFlags_Password);
     if (invite_result == 2) settings_.SaveNow(kOnlineInviteKey, std::string(invite_));
     if (invite_result == 1) settings_.Set(kOnlineInviteKey, std::string(invite_));
+  } else {
+    if (ui.ButtonRow("Account key", "Private. Keep it: with it a reinstalled game gets this name back.",
+                     "Copy account key")) {
+      Say(SetClipboardText(settings_.Get(kOnlineTokenKey)) ? "Account key copied. Keep it somewhere safe and private."
+                                                            : "Could not use the clipboard.",
+          true);
+    }
   }
 
   // -- name
@@ -302,6 +368,15 @@ void OnlinePage::Draw(trg::Ui& ui) {
     const bool can = name_ok && !busy && std::string(invite_).size() > 0;
     ImGui::BeginDisabled(!can);
     if (ui.AccentButton("Create online name")) StartRegister();
+    ImGui::EndDisabled();
+
+    ui.Row("", nullptr);
+    ui.Row("Restore", "Name from before a reinstall? Paste your account key.");
+    PasteField("key", "account key", key_, sizeof key_, false, ImGuiInputTextFlags_Password);
+    ui.Row("", nullptr);
+    const bool can_restore = !busy && !url.empty() && key_[0] != '\0';
+    ImGui::BeginDisabled(!can_restore);
+    if (ui.AccentButton("Restore account")) StartRestore();
     ImGui::EndDisabled();
   } else {
     const bool can = name_ok && !busy && !unchanged;

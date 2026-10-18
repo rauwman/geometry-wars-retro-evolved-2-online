@@ -96,6 +96,10 @@ struct RegisterResult {
 RegisterResult Register(HttpTransport& transport, const std::string& base_url, std::string_view name,
                         std::string_view invite);
 
+// Signs in with an account key (the private token of a name created earlier, e.g. before a reinstall): asks the
+// server whose it is. The account carries the server's name and id and the same token.
+RegisterResult Restore(HttpTransport& transport, const std::string& base_url, const std::string& token);
+
 struct RenameResult {
   AccountError error = AccountError::kServer;
   std::string message;

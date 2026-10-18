@@ -225,6 +225,33 @@ static void TestRename() {
   Check(Rename(ok, "https://s", "tok", "").error == AccountError::kInvalidName, "an empty name is refused locally");
 }
 
+static void TestRestore() {
+  Section("restore");
+  FakeTransport ok([](const HttpRequest&, int) { return Answer(200, R"({"xuid":"E00000000000002A","name":"Yann R"})"); });
+  const RegisterResult r = Restore(ok, "https://s", "secret-token");
+  Check(r.ok() && r.account.name == "Yann R" && r.account.token == "secret-token" && r.account.xuid == "E00000000000002A",
+        "the server's name and id, the same key");
+  const auto sent = ok.Requests();
+  Check(sent.size() == 1 && sent[0].method == "GET" && sent[0].url == "https://s/v1/me" && sent[0].bearer == "secret-token",
+        "GET /v1/me with the key");
+  const auto code = [](int status) {
+    FakeTransport t([=](const HttpRequest&, int) { return Answer(status); });
+    return Restore(t, "https://s", "tok").error;
+  };
+  Check(code(401) == AccountError::kBadToken, "unknown key");
+  Check(code(0) == AccountError::kUnreachable, "no connection");
+  Check(code(429) == AccountError::kRateLimited, "rate limited");
+  Check(code(500) == AccountError::kServer, "server error");
+  FakeTransport odd([](const HttpRequest&, int) { return Answer(200, "<html>proxy</html>"); });
+  Check(Restore(odd, "https://s", "tok").error == AccountError::kServer, "a reply without a name is an error");
+  int calls = 0;
+  FakeTransport counting([&](const HttpRequest&, int) { ++calls; return Answer(200); });
+  Check(Restore(counting, "https://s", "").error == AccountError::kBadToken &&
+            Restore(counting, "https://s", "two words").error == AccountError::kBadToken &&
+            Restore(counting, "https://s", std::string(300, 'a')).error == AccountError::kBadToken && calls == 0,
+        "a malformed key never reaches the server");
+}
+
 static void TestPostScores() {
   Section("score upload");
   FakeTransport ok([](const HttpRequest&, int) { return Answer(200, R"({"revision":3,"results":[]})"); });
@@ -360,6 +387,7 @@ int main() {
   TestCheckName();
   TestRegister();
   TestRename();
+  TestRestore();
   TestPostScores();
   TestRetryDelay();
   TestClient();

@@ -351,6 +351,41 @@ RegisterResult Register(HttpTransport& transport, const std::string& base_url, s
   return result;
 }
 
+RegisterResult Restore(HttpTransport& transport, const std::string& base_url, const std::string& token) {
+  RegisterResult result;
+  if (token.empty() || token.size() > 200 || token.find_first_of(" \t\r\n\"") != std::string::npos) {
+    result.error = AccountError::kBadToken;
+    result.message = "That is not an account key.";
+    return result;
+  }
+  HttpRequest request;
+  request.method = "GET";
+  request.url = base_url + "/v1/me";
+  request.bearer = token;
+  const HttpResponse response = transport.Send(request);
+  switch (response.status) {
+    case 200: {
+      const auto json = ParseFlatJson(response.body);
+      const auto name = json.find("name");
+      const auto xuid = json.find("xuid");
+      if (name == json.end() || name->second.empty()) {
+        result.error = AccountError::kServer;
+        break;
+      }
+      result.error = AccountError::kNone;
+      result.account = {name->second, token, xuid != json.end() ? xuid->second : std::string()};
+      return result;
+    }
+    case 0: result.error = AccountError::kUnreachable; break;
+    case 401: result.error = AccountError::kBadToken; break;
+    case 429: result.error = AccountError::kRateLimited; break;
+    default: result.error = AccountError::kServer; break;
+  }
+  result.message = result.error == AccountError::kBadToken ? "The server does not know this account key."
+                                                           : DescribeError(result.error);
+  return result;
+}
+
 RenameResult Rename(HttpTransport& transport, const std::string& base_url, const std::string& token,
                     std::string_view name) {
   RenameResult result;
