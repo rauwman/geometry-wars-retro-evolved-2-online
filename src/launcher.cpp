@@ -42,7 +42,7 @@ namespace {
 const ImVec4 kAccent = ImVec4(0.580f, 0.235f, 1.0f, 1.0f);
 constexpr double kPlayFeedbackSeconds = 0.4;
 constexpr ImGuiConfigFlags kNavFlags = ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
-constexpr char kRepositoryText[] = "github.com/saulob/geometry-wars-retro-evolved-2-recompiled";
+constexpr char kRepositoryText[] = "github.com/rauwman/geometry-wars-retro-evolved-2-recompiled";
 constexpr char kShowLauncherHelp[] = "Off starts the game directly. Hold Shift while starting to bring it back.";
 constexpr char kWindowSizeHelp[] =
     "The game window's size in Windowed mode. A new window: the game restarts once when you press Play.";

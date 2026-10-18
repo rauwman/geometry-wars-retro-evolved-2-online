@@ -6,7 +6,7 @@ shared board. It is optional: with no server address the game stays fully offlin
 ## For players
 
 1. Open the launcher's **Online** page.
-2. Enter the server address and invite code (a release made for friends already has them filled in).
+2. Enter the server address and invite code you got from the person who runs the server. (A ZIP made for friends, see below, already has them filled in.)
 3. Type the name you want. The launcher asks the server while you type and tells you if the name is taken.
 4. Press **Create online name**. The name and a private token are stored in `user_data\launcher\settings.toml`.
 
@@ -33,13 +33,20 @@ existed before the account was made are uploaded once, as they are.
 
 ## For the person who runs the server
 
-The server is a separate project (`gw2-leaderboard`: FastAPI + SQLite, one Docker container behind HTTPS). Put its
-address and the invite code in the release's `geometry_wars_retro_evolved_2.toml`:
+The server is a separate project (`gw2-leaderboard`: FastAPI + SQLite, one Docker container behind HTTPS).
 
-```toml
-gw2_online_url = "https://gw2.example.org"
-gw2_online_invite = "the-shared-invite-code"
-```
+A public release carries no server address and no invite code. There are two ways to get them to your players:
+
+1. Tell them the address and the invite code privately. They enter both on the launcher's Online page once.
+2. Build a ZIP for friends that has both filled in:
+
+   ```powershell
+   .\tools\package-release.ps1 -ServerUrl https://gw2.example.org -InviteCode the-shared-invite-code
+   ```
+
+   The result is `dist\GeometryWarsRetroEvolved2-v<version>-windows-x64-friends.zip`. Share it privately only: the
+   invite code can be read from the file. The normal `package-release.ps1` run (no parameters) refuses to package a
+   build whose configuration holds an address or a code, so a public ZIP cannot carry them by accident.
 
 Do not commit the invite code to a public repository. Plain `http://` is accepted only for `localhost` and private
 network addresses, for testing.
@@ -47,7 +54,8 @@ network addresses, for testing.
 ## What the game shows
 
 - **Leaderboards:** the game's own leaderboard screens list your friends, ranked per mode, with you under your name.
-  The "Overall" and "My score" filters show everyone on the server. The "Friends" filter shows only you: the game builds it from its own friend list, which is empty in this port.
+  All three filters (Overall, My score and Friends) show everyone on the server: the game's friend list is the other
+  players on the server (`XFriendsCreateEnumerator` is answered by the port).
   The boards come from the server in the background (at start, when a leaderboard is opened, after each upload and
   every 30 seconds); the screen never waits for the network. Without a connection the game shows your own scores, as
   offline.

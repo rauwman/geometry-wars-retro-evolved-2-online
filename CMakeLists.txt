@@ -2,6 +2,8 @@
 
 cmake_minimum_required(VERSION 3.25)
 project(geometry_wars_retro_evolved_2 VERSION 0.3.1 LANGUAGES C CXX)
+# This fork's own version (the mod). A release is named <upstream version>-modded-v<this>, e.g. v0.3.1-modded-v0.1.0. Read by tools\package-release.ps1.
+set(GW2_MOD_VERSION "0.1.0")
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -13,7 +13,7 @@ The game has one leaderboard per game mode, written and read through these calls
 | Score write | `XSessionWriteStats` | the port records it |
 | Leaderboard reads | `XUserCreateStatsEnumeratorByRank` / `ByXuid`, `XEnumerate` | the port |
 | Scoreboard preview and friends board | `XUserReadStats` | the port fills ReXGlue's empty answer |
-| Friends | `XFriendsCreateEnumerator` | ReXGlue fails it, so the game sees no friends |
+| Friends | `XFriendsCreateEnumerator` (`sub_820E8A98`) | ReXGlue fails it, so the game sees no friends; with an online account the port lists the server's players (see [online.md](online.md)) |
 | Achievements | `XUserWriteAchievements`, `XUserCreateAchievementEnumerator` | ReXGlue |
 | Achievements screen | `XamShowAchievementsUI` | the port opens its achievements overlay |
 
