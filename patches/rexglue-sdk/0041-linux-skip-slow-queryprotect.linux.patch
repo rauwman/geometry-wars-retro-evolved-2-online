@@ -1,0 +1,165 @@
+diff --git a/include/rex/memory/utils.h b/include/rex/memory/utils.h
+index 8ccb52c..9226028 100644
+--- a/include/rex/memory/utils.h
++++ b/include/rex/memory/utils.h
+@@ -114,6 +114,11 @@ bool Protect(void* base_address, size_t length, PageAccess access,
+ // the region.
+ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out);
+ 
++// Whether QueryProtect is cheap enough to call from the access violation handler while the global
++// critical region is held. True everywhere except Linux kernels without PROCMAP_QUERY (< 6.11),
++// where QueryProtect has to parse /proc/self/maps, which is far too slow for that path.
++bool IsQueryProtectCheap();
++
+ // Allocates a block of memory for a type with the given alignment.
+ // The memory must be freed with AlignedFree.
+ template <typename T>
+diff --git a/include/rex/system/xmemory.h b/include/rex/system/xmemory.h
+index 0c39a42..3e399fe 100644
+--- a/include/rex/system/xmemory.h
++++ b/include/rex/system/xmemory.h
+@@ -322,6 +322,10 @@ class PhysicalHeap : public BaseHeap {
+ 
+   uint32_t GetPhysicalAddress(uint32_t address) const;
+ 
++  // True if the guest sees the page as writable and nothing watches it any more, i.e. a write fault
++  // there only means another thread already cleared the watch. Caller holds the global lock.
++  bool IsStaleWriteFault(uint32_t virtual_address) const;
++
+  protected:
+   bool IsHostPageWriteWatched(uint32_t host_page_number) const override;
+ 
+diff --git a/src/core/memory_posix.cpp b/src/core/memory_posix.cpp
+index e4af61a..4922133 100644
+--- a/src/core/memory_posix.cpp
++++ b/src/core/memory_posix.cpp
+@@ -31,6 +31,7 @@
+ #include <sys/stat.h>
+ #include <unistd.h>
+ 
++#include <rex/cvar.h>
+ #include <rex/logging.h>
+ #include <rex/math.h>
+ #include <rex/memory/utils.h>
+@@ -59,6 +60,10 @@
+ // #include "xenia/base/main_android.h"
+ #endif
+ 
++REXCVAR_DEFINE_BOOL(procmap_query, true, "Memory",
++                    "Use the Linux PROCMAP_QUERY ioctl (kernel 6.11+) instead of parsing /proc/self/maps")
++    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++
+ namespace rex {
+ namespace memory {
+ 
+@@ -202,6 +207,9 @@ constexpr uint64_t kProcmapVmaShared = 0x08;
+ // 1: the mapping containing the address is in `out_entry`; 0: there is no mapping at the address; -1: the kernel
+ // cannot answer (older than 6.11, or an error), so the caller reads /proc/self/maps.
+ static int QueryEntryWithProcmapQuery(uintptr_t addr, LinuxMapEntry& out_entry) {
++  if (!REXCVAR_GET(procmap_query)) {
++    return -1;
++  }
+   // -2: not opened yet, -1: not available. One descriptor serves all threads: the query keeps no state in it.
+   static std::atomic<int> maps_fd{-2};
+   int fd = maps_fd.load(std::memory_order_acquire);
+@@ -631,5 +639,20 @@ bool UnmapFileView(FileMappingHandle handle, void* base_address, size_t length)
+   return munmap(base_address, length) == 0;
+ }
+ 
++bool IsQueryProtectCheap() {
++#if REX_PLATFORM_LINUX
++  // Probe once whether the kernel answers PROCMAP_QUERY (6.11+). Without it every QueryProtect parses
++  // the whole /proc/self/maps, which costs hundreds of microseconds with a fragmented address space.
++  static const bool cheap = [] {
++    static int probe_target = 0;
++    LinuxMapEntry entry;
++    return QueryEntryWithProcmapQuery(reinterpret_cast<uintptr_t>(&probe_target), entry) >= 0;
++  }();
++  return cheap;
++#else
++  return true;
++#endif
++}
++
+ }  // namespace memory
+ }  // namespace rex
+diff --git a/src/system/mmio_handler.cpp b/src/system/mmio_handler.cpp
+index 2b93005..57c7c19 100644
+--- a/src/system/mmio_handler.cpp
++++ b/src/system/mmio_handler.cpp
+@@ -406,13 +406,17 @@ bool MMIOHandler::ExceptionCallback(arch::Exception* ex) {
+     // clears the watch we just hit).
+     // Do this under the lock so we don't introduce another race condition.
+     auto lock = global_critical_region_.Acquire();
+-    memory::PageAccess cur_access;
+-    size_t page_length = memory::page_size();
+-    memory::QueryProtect(fault_host_address, page_length, cur_access);
+-    if (cur_access != memory::PageAccess::kNoAccess &&
+-        (!is_write || cur_access != memory::PageAccess::kReadOnly)) {
+-      // Another thread has cleared this watch. Abort.
+-      return true;
++    // Without a cheap query (Linux < 6.11) this would parse /proc/self/maps under the global lock for
++    // every fault; the callback detects an already cleared watch from the heap bookkeeping instead.
++    if (memory::IsQueryProtectCheap()) {
++      memory::PageAccess cur_access;
++      size_t page_length = memory::page_size();
++      memory::QueryProtect(fault_host_address, page_length, cur_access);
++      if (cur_access != memory::PageAccess::kNoAccess &&
++          (!is_write || cur_access != memory::PageAccess::kReadOnly)) {
++        // Another thread has cleared this watch. Abort.
++        return true;
++      }
+     }
+     // The address is not found within any range, so either a write watch or an
+     // actual access violation.
+diff --git a/src/system/xmemory.cpp b/src/system/xmemory.cpp
+index 5e53d78..863ad0f 100644
+--- a/src/system/xmemory.cpp
++++ b/src/system/xmemory.cpp
+@@ -556,6 +556,18 @@ bool Memory::AccessViolationCallback(std::unique_lock<std::recursive_mutex> glob
+   // Will be rounded to physical page boundaries internally, so just pass 1 as
+   // the length - guranteed not to cross page boundaries also.
+   auto physical_heap = static_cast<PhysicalHeap*>(heap);
++  if (is_write && !rex::memory::IsQueryProtectCheap() &&
++      physical_heap->IsStaleWriteFault(virtual_address)) {
++    // The mmio handler skipped its host protection recheck (see there); another thread has already
++    // cleared the watch, so just make sure the host page is writable and retry the access.
++    const size_t host_page_size = rex::memory::page_size();
++    const uintptr_t page_base =
++        reinterpret_cast<uintptr_t>(host_address) & ~(uintptr_t(host_page_size - 1));
++    if (rex::memory::Protect(reinterpret_cast<void*>(page_base), host_page_size,
++                             rex::memory::PageAccess::kReadWrite, nullptr)) {
++      return true;
++    }
++  }
+   if (physical_heap->TriggerCallbacks(std::move(global_lock_locked_once), virtual_address, 1,
+                                       is_write, false)) {
+     return true;
+@@ -2353,6 +2365,27 @@ bool PhysicalHeap::IsHostPageWriteWatched(uint32_t host_page_number) const {
+           (uint64_t(1) << (host_page_number & 63))) != 0;
+ }
+ 
++bool PhysicalHeap::IsStaleWriteFault(uint32_t virtual_address) const {
++  if (virtual_address < heap_base_) {
++    return false;
++  }
++  const uint32_t heap_relative_address = virtual_address - heap_base_;
++  if (heap_relative_address >= heap_size_) {
++    return false;
++  }
++  const uint32_t system_page = (heap_relative_address + host_address_offset()) / system_page_size_;
++  if (system_page >= system_page_count_ || IsHostPageWriteWatched(system_page)) {
++    return false;
++  }
++  const uint32_t guest_page_number =
++      rex::sat_sub(system_page * system_page_size_, host_address_offset()) >> page_size_shift_;
++  if (guest_page_number >= page_table_.size()) {
++    return false;
++  }
++  return ToPageAccess(page_table_[guest_page_number].current_protect) ==
++         rex::memory::PageAccess::kReadWrite;
++}
++
+ uint32_t PhysicalHeap::GetPhysicalAddress(uint32_t address) const {
+   assert_true(address >= heap_base_);
+   address -= heap_base_;

@@ -1,0 +1,134 @@
+diff --git a/src/core/memory_posix.cpp b/src/core/memory_posix.cpp
+index b52bf39..e4af61a 100644
+--- a/src/core/memory_posix.cpp
++++ b/src/core/memory_posix.cpp
+@@ -9,6 +9,7 @@
+  * @modified    Tom Clay & Rien Gupta, 2026 - Adapted for ReXGlue runtime (POSIX + macOS)
+  */
+ 
++#include <atomic>
+ #include <cerrno>
+ #include <cstddef>
+ #include <cstdio>
+@@ -25,6 +26,7 @@
+ #include <mach/vm_region.h>
+ #endif  // REX_PLATFORM_MAC
+ 
++#include <sys/ioctl.h>
+ #include <sys/mman.h>
+ #include <sys/stat.h>
+ #include <unistd.h>
+@@ -170,9 +172,85 @@ static bool ParseProcMapsLine(const std::string& line, LinuxMapEntry& out) {
+   return out.start < out.end;
+ }
+ 
++// PROCMAP_QUERY (Linux 6.11 and later) asks the kernel for the mapping that contains an address, instead of making
++// it print every mapping of the process and parsing the text. The guest memory is split into many mappings by the
++// write watches, so reading /proc/self/maps for each lookup took several hundred microseconds, and the lookup runs
++// in the write-watch fault handler under the global lock. The structure and the number are declared here because the
++// build machine's headers can be older than the kernel the game runs on.
++struct ProcmapQuery {
++  uint64_t size;
++  uint64_t query_flags;
++  uint64_t query_addr;
++  uint64_t vma_start;
++  uint64_t vma_end;
++  uint64_t vma_flags;
++  uint64_t vma_page_size;
++  uint64_t vma_offset;
++  uint64_t inode;
++  uint32_t dev_major;
++  uint32_t dev_minor;
++  uint32_t vma_name_size;
++  uint32_t build_id_size;
++  uint64_t vma_name_addr;
++  uint64_t build_id_addr;
++};
++constexpr uint64_t kProcmapVmaReadable = 0x01;
++constexpr uint64_t kProcmapVmaWritable = 0x02;
++constexpr uint64_t kProcmapVmaExecutable = 0x04;
++constexpr uint64_t kProcmapVmaShared = 0x08;
++
++// 1: the mapping containing the address is in `out_entry`; 0: there is no mapping at the address; -1: the kernel
++// cannot answer (older than 6.11, or an error), so the caller reads /proc/self/maps.
++static int QueryEntryWithProcmapQuery(uintptr_t addr, LinuxMapEntry& out_entry) {
++  // -2: not opened yet, -1: not available. One descriptor serves all threads: the query keeps no state in it.
++  static std::atomic<int> maps_fd{-2};
++  int fd = maps_fd.load(std::memory_order_acquire);
++  if (fd == -2) {
++    const int opened = open("/proc/self/maps", O_RDONLY | O_CLOEXEC);
++    int expected = -2;
++    if (maps_fd.compare_exchange_strong(expected, opened)) {
++      fd = opened;
++    } else {
++      if (opened >= 0) {
++        close(opened);
++      }
++      fd = expected;
++    }
++  }
++  if (fd < 0) {
++    return -1;
++  }
++  ProcmapQuery query = {};
++  query.size = sizeof(query);
++  query.query_addr = addr;
++  if (ioctl(fd, _IOWR('f', 17, ProcmapQuery), &query) != 0) {
++    if (errno == ENOENT) {
++      return 0;
++    }
++    if (errno == ENOTTY || errno == EINVAL || errno == ENOSYS || errno == EBADF) {
++      maps_fd.store(-1, std::memory_order_release);
++    }
++    return -1;
++  }
++  if (query.vma_start > addr || query.vma_end <= addr) {
++    return -1;
++  }
++  out_entry = LinuxMapEntry{};
++  out_entry.start = static_cast<uintptr_t>(query.vma_start);
++  out_entry.end = static_cast<uintptr_t>(query.vma_end);
++  out_entry.perms[0] = (query.vma_flags & kProcmapVmaReadable) ? 'r' : '-';
++  out_entry.perms[1] = (query.vma_flags & kProcmapVmaWritable) ? 'w' : '-';
++  out_entry.perms[2] = (query.vma_flags & kProcmapVmaExecutable) ? 'x' : '-';
++  out_entry.perms[3] = (query.vma_flags & kProcmapVmaShared) ? 's' : 'p';
++  return 1;
++}
++
+ // Find the mapping entry in /proc/self/maps that contains the given address
+ static bool FindEntryForAddress(void* address, LinuxMapEntry& out_entry) {
+   const uintptr_t addr = reinterpret_cast<uintptr_t>(address);
++  if (const int queried = QueryEntryWithProcmapQuery(addr, out_entry); queried >= 0) {
++    return queried == 1;
++  }
+   std::ifstream maps("/proc/self/maps");
+   if (!maps.is_open())
+     return false;
+@@ -200,6 +278,27 @@ static bool IsRangeFullyMapped(void* base_address, size_t length) {
+     return false;
+   }
+ 
++  {
++    // One kernel query per mapping of the range, if the kernel has PROCMAP_QUERY.
++    uintptr_t covered = begin;
++    bool answered = true;
++    while (covered < end) {
++      LinuxMapEntry entry;
++      const int queried = QueryEntryWithProcmapQuery(covered, entry);
++      if (queried < 0) {
++        answered = false;
++        break;
++      }
++      if (queried == 0) {
++        return false;  // gap found
++      }
++      covered = entry.end;
++    }
++    if (answered) {
++      return true;
++    }
++  }
++
+   std::ifstream maps("/proc/self/maps");
+   if (!maps.is_open())
+     return false;

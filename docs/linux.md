@@ -1,7 +1,7 @@
 # Linux and Steam Deck
 
-> **Experimental.** The Linux build is a native x86_64 program, not a Windows build under Proton or Wine. Testing on
-> real hardware is limited to one report so far (see [Known limits](#known-limits)). Reports are welcome.
+> **Experimental.** The Linux build is a native x86_64 program, not a Windows build under Proton or Wine. It has been
+> tested on one Steam Deck, where it runs at 60 to 90 FPS (see [Known limits](#known-limits)). Reports are welcome.
 
 The Linux build uses the same code as the Windows build: ReXGlue SDK 0.10.0's Linux runtime, the Xenos GPU
 plugin's Vulkan backend, and the same TRG launcher. It ships as one AppImage, which is also the Steam Deck build.
@@ -20,24 +20,27 @@ is older than GCC 13.
 
 ## Installing
 
-1. Download **GeometryWarsRetroEvolved2Recompiled-v…-x86_64.AppImage** and put it in a folder you can write to.
-2. Make it executable: right-click it > **Properties** > **Permissions** > **Is executable**, or
-   `chmod +x GeometryWarsRetroEvolved2Recompiled-v*-x86_64.AppImage`.
-3. Run it. The launcher opens.
+1. Download **GeometryWarsRetroEvolved2Recompiled-v…-modded-v…-x86_64.tar.gz** and unpack it (right-click > **Extract**,
+   or `tar xzf`) into a folder you can write to. A browser download of a bare AppImage has no executable bit; an
+   unpacked `.tar.gz` keeps it. The AppImage is also released on its own.
+2. If the AppImage does not start, make it executable: right-click it > **Properties** > **Permissions** >
+   **Is executable**, or `chmod +x GeometryWarsRetroEvolved2Recompiled-v*-x86_64.AppImage`.
+3. Run it (double click). The launcher opens.
 4. On the **Play** page click **Install from package...** and pick your package. The game files are copied into a
    `game` folder next to the AppImage.
 5. Press **PLAY**.
 
 ### Steam Deck
 
-This is the intended flow. It has not been tried on a Steam Deck yet.
+The fork's maintainer tested this on a Steam Deck: the game runs at 60 to 90 FPS. The frame rate you get is capped by
+the launcher's frame rate setting and by the display (60 Hz on the LCD model, 90 Hz on the OLED).
 
 1. In **Desktop Mode**, do steps 1 to 5 above. Copy your package to the Deck first (USB stick, SD card or network).
 2. In Steam: **Games** > **Add a Non-Steam Game to My Library**, and pick the AppImage.
 3. Return to **Game Mode** and start it from your library.
 
 The launcher takes mouse, keyboard and controller input: the D-pad, left stick, A and B move through it, and
-**Start** presses Play. This has not been tried on a Deck yet.
+**Start** presses Play.
 
 ## Where things are
 
@@ -87,13 +90,17 @@ failure rules.
   ([#1](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/issues/1)). v0.3.1 keeps the game's speed
   at the 60 FPS setting when frames miss vblanks (see [launcher.md](launcher.md)), so a slow frame rate no longer slows
   the game itself. v0.4.0 replaces that with a new timing clock for the short speed-ups seen when the rate rises
-  toward about 45 FPS. Why that system renders around 30 FPS is still under investigation, and the timing fix has not been
-  confirmed on the reporter's hardware yet. The same report's very dark image was fixed in v0.2.3 (see
+  toward about 45 FPS. The same report's very dark image was fixed in v0.2.3 (see
   [rexglue-gpu-patch.md](rexglue-gpu-patch.md)), and the reporter confirmed it.
+- **The same symptom on a Steam Deck** (about 30 FPS, the music slowing down with it) was traced in this fork to the
+  runtime's write-watch fault handler, which searched `/proc/self/maps` for every fault under a global lock, and is
+  fixed by patches 0040 and 0041 ([the details](rexglue-runtime-patch.md#why-0040-and-0041)): 60 to 90 FPS on the
+  maintainer's Deck. Whether the Steam Machine report has the same cause is not confirmed. Linux 6.11 or newer answers
+  the lookup directly; older kernels use the second patch's path. `--procmap_query=false` forces that path.
 - Controller vibration (Controls > Vibration, off by default) is included in the Linux build but has not been confirmed on a real controller or a Steam Deck.
 - The AppImage's automatic extraction when FUSE cannot mount was exercised by forcing the mount to fail on a Linux test machine. It has not been tried on a SteamOS device.
-- Otherwise untested on real hardware: audio, other controller features, performance and the frame rates above 60 are unconfirmed on
-  Linux. They were validated on Windows only.
+- Tested on one Steam Deck only. On other hardware, audio, other controller features and the frame rates above 60 are
+  unconfirmed; they were validated on Windows.
 - The portable `user_data` folder and the move from the XDG folder are covered by unit tests with temporary folders
   only. They have not been tried with an AppImage on a real Linux PC or Steam Deck.
 - Holding **Shift** to bring the launcher back works only if the window gets keyboard focus while Shift is still
@@ -161,10 +168,12 @@ The script copies the sources to `~/gw2-linux-build` (set `GW2_WORK` to change i
 SDK and appimagetool with their SHA-256 checks, prepares the patched ReXGlue runtime and GPU plugin
 the same way `tools/build.sh` does, builds the AppImage runtime (below), builds the `linux-amd64-release` preset, checks the libraries again in the build
 folder and the AppDir, checks that the AppDir holds no game files, packages, saves, logs or local paths, and writes
-`GeometryWarsRetroEvolved2Recompiled-v<version>-x86_64.AppImage` with its `.sha256` in `dist/` (`--out-dir DIR` writes
-them to DIR instead). The version is the
-`project()` VERSION in `CMakeLists.txt`. The script publishes nothing, and the game's `default.xex` only enters the
-temporary build folder as input for code generation, never the AppImage.
+`GeometryWarsRetroEvolved2Recompiled-v<version>-modded-v<mod version>-x86_64.AppImage` and a `.tar.gz` with the same
+name that holds the AppImage (unpacking it keeps the executable bit), each with its `.sha256`, in `dist/` (`--out-dir DIR`
+writes them to DIR instead). The version is the `project()` VERSION in `CMakeLists.txt`, the mod version its
+`GW2_MOD_VERSION`. The script publishes nothing, and the game's `default.xex` only enters the temporary build folder as
+input for code generation, never the AppImage. It stops if the bundled settings file names a leaderboard server or an
+invite code.
 
 ### The AppImage runtime
 

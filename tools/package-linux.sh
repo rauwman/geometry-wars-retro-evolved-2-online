@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Builds the Linux x86_64 Release and packages GeometryWarsRetroEvolved2Recompiled-v<version>-x86_64.AppImage into dist/.
+# Builds the Linux x86_64 Release and packages GeometryWarsRetroEvolved2Recompiled-v<version>-modded-v<mod version>-x86_64.AppImage
+# and a .tar.gz with the AppImage into dist/.
 # Local only: nothing is published, tagged or uploaded. Run on Linux or WSL.
 #
 #   tools/package-linux.sh            incremental Release build, then package
 #   tools/package-linux.sh --clean    clean Release build first
-#   tools/package-linux.sh --out-dir DIR    write the AppImage and its .sha256 to DIR instead of dist/
+#   tools/package-linux.sh --out-dir DIR    write the AppImage, the .tar.gz and their .sha256 files to DIR instead of dist/
 #
 # Needs clang-20, clang++-20, lld-20, cmake 3.25+, ninja, rsync, wget or curl, unzip or python3, binutils and the
 # GCC 13+ C++ runtime. Release builds are made on Ubuntu 20.04 (tools/setup-linux-build-env.sh prepares one): the
@@ -59,11 +60,13 @@ download() {  # url file sha256
 VERSION="$(sed -nE 's/^[[:space:]]*project\([[:space:]]*geometry_wars_retro_evolved_2[[:space:]]+VERSION[[:space:]]+([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$ROOT/CMakeLists.txt")"
 [ -n "$VERSION" ] || fail "project VERSION not found in CMakeLists.txt"
 VERSION="$VERSION$(sed -nE 's/^[[:space:]]*set\(GW2_VERSION_SUFFIX[[:space:]]+"([^"]*)"\).*/\1/p' "$ROOT/CMakeLists.txt")"
+MOD_VERSION="$(sed -nE 's/^[[:space:]]*set\(GW2_MOD_VERSION[[:space:]]+"([0-9]+\.[0-9]+\.[0-9]+)"\).*/\1/p' "$ROOT/CMakeLists.txt")"
+[ -n "$MOD_VERSION" ] || fail "GW2_MOD_VERSION not found in CMakeLists.txt"
 APP_ID="$(sed -nE 's/^[[:space:]]*constexpr char kApplicationId\[\] = "([^"]+)";.*/\1/p' "$ROOT/src/launcher_platform_linux.cpp")"
 [[ "$APP_ID" =~ ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+$ ]] ||
   fail "src/launcher_platform_linux.cpp must declare kApplicationId exactly once, as a dotted name on one line (found: '$APP_ID')"
 [ -f "$ROOT/packaging/linux/$APP_ID.desktop" ] || fail "packaging/linux/$APP_ID.desktop is missing: the desktop file is named after kApplicationId"
-NAME="GeometryWarsRetroEvolved2Recompiled-v$VERSION-x86_64"
+NAME="GeometryWarsRetroEvolved2Recompiled-v$VERSION-modded-v$MOD_VERSION-x86_64"
 echo "Geometry Wars: Retro Evolved 2 Recompiled $VERSION - Linux AppImage (local only)"
 
 echo "== Host"
@@ -206,6 +209,11 @@ while IFS= read -r -d '' item; do
     *renderdoc* | *vklayer* | *.json | implicit_layer.d | explicit_layer.d) problem "RenderDoc or Vulkan layer file: $rel" ;;
   esac
   [ -L "$item" ] && problem "symbolic link: $rel"
+  # The bundled settings file must not carry a leaderboard server or invite code.
+  if [ "$base" = geometry_wars_retro_evolved_2.toml ] &&
+    grep -qE '^[[:space:]]*gw2_online_(url|invite)[[:space:]]*=[[:space:]]*"[^"]+"' "$item"; then
+    problem "online server or invite code in $rel"
+  fi
   if [ -f "$item" ]; then
     case "$(head -c 4 "$item" | tr -d '\0')" in LIVE | PIRS | "CON ") problem "Xbox 360 package: $rel" ;; esac
     for path in "$ROOT" "$WORK" "$HOME"; do
@@ -282,11 +290,34 @@ bash "$ROOT/tools/check-glibc-baseline.sh" --max "$MAX_GLIBC" "$OUT" "$CHECK/squ
   { rm -f "$OUT"; fail "the AppImage does not meet the glibc $MAX_GLIBC baseline"; }
 (cd "$OUT_DIR" && sha256sum "$NAME.AppImage" > "$NAME.sha256")
 
+echo "== Installer bundle"
+# A browser download drops the executable bit of an AppImage; unpacking a .tar.gz keeps it, so the AppImage
+# starts with a double click. The folder inside the archive is named like the AppImage.
+BUNDLE="$(mktemp -d)"
+trap 'rm -rf "$CHECK" "$BUNDLE"' EXIT
+mkdir -p "$BUNDLE/$NAME"
+cp "$OUT" "$BUNDLE/$NAME/"
+cat > "$BUNDLE/$NAME/README.txt" <<EOF
+Geometry Wars: Retro Evolved 2 Recompiled $VERSION, mod v$MOD_VERSION (Linux x86_64)
+
+Unpack this archive (not just the AppImage file) and start $NAME.AppImage with a double click.
+Put the folder wherever you like: the game files, settings and saves are stored next to the AppImage.
+If the AppImage does not start, make it executable: right-click > Properties > Permissions > "Is executable".
+
+Steam Deck: do this in Desktop Mode, then add the game with Games > Add a Non-Steam Game to My Library.
+EOF
+chmod 755 "$BUNDLE/$NAME" "$BUNDLE/$NAME/$NAME.AppImage"
+chmod 644 "$BUNDLE/$NAME/README.txt"
+TARBALL="$OUT_DIR/$NAME.tar.gz"
+tar -C "$BUNDLE" --sort=name --owner=0 --group=0 --numeric-owner -cf - "$NAME" | gzip -9n > "$TARBALL"
+(cd "$OUT_DIR" && sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
+
 echo
 echo "===================================================="
 echo " APPIMAGE READY (nothing was published)"
 echo "===================================================="
 echo "  AppImage: $OUT ($(du -h "$OUT" | cut -f1))"
 echo "  SHA-256:  $(cut -d' ' -f1 "$OUT_DIR/$NAME.sha256")"
+echo "  Bundle:   $TARBALL ($(du -h "$TARBALL" | cut -f1))"
 echo "  Contents:"
 echo "$EXPECTED" | sed 's/^/    /'

@@ -20,6 +20,7 @@ This is an unofficial fan-made fork of [saulob/geometry-wars-retro-evolved-2-rec
 - **No cheated scores.** A game in which a cheat was in effect is not uploaded.
 - **Account key.** Copy your private key on the Online page; after a reinstall, paste it under **Restore** to get your name back.
 - **Nothing blocks the game.** Without a server or a connection the game shows your own scores, as before.
+- **Linux / Steam Deck build that runs well.** The native Linux build ran at about 30 FPS on a Steam Deck, with the music slowing down along with it. The cause was in the ReXGlue runtime (it searched `/proc/self/maps` thousands of times a second under a global lock), and this fork fixes it: 60 to 90 FPS on the maintainer's Steam Deck. Details: [docs/linux.md](docs/linux.md) and [docs/rexglue-runtime-patch.md](docs/rexglue-runtime-patch.md#why-0040-and-0041).
 
 A server is **not** included and not hosted for you: someone you know has to run one. The server is a separate project, **[gw2-leaderboard](https://github.com/rauwman/gw2-leaderboard)** (a Docker image; running it and putting it safely on the internet behind HTTPS is up to you). How the game side works: [docs/online.md](docs/online.md).
 
@@ -29,11 +30,11 @@ A server is **not** included and not hosted for you: someone you know has to run
 
 ## Download
 
-**GeometryWarsRetroEvolved2-v0.4.0-windows-x64-modded-v0.1.1.zip** from the [latest release](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/releases/latest). The version is upstream's (v0.4.0) with the fork's own version (`modded-v0.1.1`) appended.
+**GeometryWarsRetroEvolved2-v0.4.0-windows-x64-modded-v0.1.2.zip** from the [latest release](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/releases/latest). The version is upstream's (v0.4.0) with the fork's own version (`modded-v0.1.2`) appended.
 
 You need Windows 10 or 11 (64-bit), a DirectX 12 graphics card and **your own Geometry Wars: Retro Evolved 2 Xbox Live Arcade package**. Extract the ZIP, run `geometry_wars_retro_evolved_2.exe` and install the game from your package on the launcher's **Play** page. The exact game version, launcher pages, saves and troubleshooting are in the [full manual](docs/manual.md).
 
-**Linux / Steam Deck (experimental, untested):** the native build of upstream is described in the manual. The friends leaderboard is built into it too (it needs the system `libcurl.so.4`), but the fork only ships a Windows ZIP so far.
+**Linux / Steam Deck (native, tested on one Steam Deck):** download **GeometryWarsRetroEvolved2Recompiled-v0.4.0-modded-v0.1.2-x86_64.tar.gz** from the same release and unpack it (the unpacked AppImage starts with a double click; a bare AppImage download first needs "Is executable" under Properties > Permissions). The game files go into a `game` folder next to the AppImage, installed from your package on the launcher's **Play** page. Steps for the Steam Deck, requirements and known limits are in [docs/linux.md](docs/linux.md). The friends leaderboard is built into it too (it needs the system `libcurl.so.4`).
 
 ## More
 
