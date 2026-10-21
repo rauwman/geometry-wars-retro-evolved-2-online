@@ -20,9 +20,13 @@ constexpr uint32_t kObjectY = 8;
 constexpr uint32_t kObjectAngle = 20;
 constexpr uint32_t kObjectScaleX = 24;
 constexpr uint32_t kObjectScaleY = 28;
+constexpr uint32_t kObjectShapeCount = 60;
+constexpr uint32_t kObjectShape = 64;
 constexpr uint32_t kObjectType = 68;
 // A teleport, respawn or level transition moves an object much farther than one 60 Hz step.
 constexpr float kSnapDistance = 8.0f;
+// A turn this large in one tick has no unique shortest path, so it is a pose change rather than a rotation.
+constexpr float kSnapAngle = 0.75f * kPi;
 
 InterpolationScheduler g_scheduler;
 TransformHistory g_history;
@@ -59,6 +63,16 @@ bool SameTransform(const TransformSample& a, const TransformSample& b) {
          NearlyEqual(a.scale_y, b.scale_y, kTransformEpsilon);
 }
 
+uint32_t ObjectKind(uint8_t* base, uint32_t object) {
+  uint32_t kind = LoadBE32(base, object + kObjectType);
+  kind = kind * 2654435761u ^ LoadBE32(base, object + kObjectShape);
+  return kind * 2654435761u ^ LoadBE32(base, object + kObjectShapeCount);
+}
+
+bool SameBits(float a, float b) {
+  return std::bit_cast<uint32_t>(a) == std::bit_cast<uint32_t>(b);
+}
+
 }  // namespace
 
 float ShortestAngleDelta(float from, float to) {
@@ -80,6 +94,11 @@ bool IsTransformDiscontinuity(const TransformSample& previous, const TransformSa
   const float dx = current.x - previous.x;
   const float dy = current.y - previous.y;
   return dx * dx + dy * dy > max_distance * max_distance;
+}
+
+bool IsOrientationDiscontinuity(const TransformSample& previous, const TransformSample& current) {
+  return std::fabs(ShortestAngleDelta(previous.angle, current.angle)) > kSnapAngle ||
+         previous.scale_x * current.scale_x < 0.0f || previous.scale_y * current.scale_y < 0.0f;
 }
 
 void InterpolationScheduler::Reset(double initial_interval) {
@@ -242,8 +261,13 @@ TransformHistory::Result TransformHistory::Update(uint32_t object, uint32_t type
     return {false, true, live};
   }
 
+  if (tick == entry->tick && !SameTransform(entry->current, live)) {
+    return {false, true, live};
+  }
+
   const bool continuous = entry->type == type && tick <= entry->last_seen + 1 &&
-                          !IsTransformDiscontinuity(entry->current, live, max_distance);
+                          !IsTransformDiscontinuity(entry->current, live, max_distance) &&
+                          !IsOrientationDiscontinuity(entry->current, live);
   if (tick != entry->tick) {
     entry->previous = continuous ? entry->current : live;
     entry->current = live;
@@ -293,7 +317,7 @@ ObjectTransformOverride VisualInterpolationPrepareObject(uint8_t* base, uint32_t
   }
 
   const TransformSample live = ReadTransform(base, object);
-  const uint32_t type = LoadBE32(base, object + kObjectType);
+  const uint32_t type = ObjectKind(base, object);
   const TransformHistory::Result updated =
       g_history.Update(object, type, g_frame.tick, g_frame.epoch, live, g_frame.alpha, kSnapDistance);
   if (!updated.override_value) {
@@ -303,6 +327,7 @@ ObjectTransformOverride VisualInterpolationPrepareObject(uint8_t* base, uint32_t
   result.object = object;
   result.active = true;
   result.saved = live;
+  result.written = updated.value;
   WriteTransform(base, object, updated.value);
   return result;
 }
@@ -311,7 +336,15 @@ void VisualInterpolationRestoreObject(uint8_t* base, const ObjectTransformOverri
   if (!override.active) {
     return;
   }
-  WriteTransform(base, override.object, override.saved);
+  // A draw callback that changed a field owns its new value.
+  const TransformSample drawn = ReadTransform(base, override.object);
+  const TransformSample& saved = override.saved;
+  const TransformSample& written = override.written;
+  WriteTransform(base, override.object,
+                 {SameBits(drawn.x, written.x) ? saved.x : drawn.x, SameBits(drawn.y, written.y) ? saved.y : drawn.y,
+                  SameBits(drawn.angle, written.angle) ? saved.angle : drawn.angle,
+                  SameBits(drawn.scale_x, written.scale_x) ? saved.scale_x : drawn.scale_x,
+                  SameBits(drawn.scale_y, written.scale_y) ? saved.scale_y : drawn.scale_y});
 }
 
 }  // namespace gw2
