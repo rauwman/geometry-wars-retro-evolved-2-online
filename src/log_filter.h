@@ -23,6 +23,10 @@ bool MinimalLogFilterInstalled();
 // Unwraps the file sink so ShutdownLogging can close its file. Only on the way out, once no other thread logs.
 void ReleaseMinimalLogFilter();
 
+// Closes the file behind the log sink and stops it accepting messages, while every logger stays valid for threads
+// that still log. False when no file sink exists.
+bool CloseLogFile();
+
 // The sink a logger actually writes to, looking through the Minimal filter.
 spdlog::sink_ptr UnwrapLogSink(const spdlog::sink_ptr& sink);
 

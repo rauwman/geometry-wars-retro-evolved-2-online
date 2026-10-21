@@ -12,8 +12,8 @@ void InstallSessionLogCleanup();
 // log: the normal exit through atexit.
 void FinalizeSessionLog();
 
-// The same policy for the window close, where guest threads still log: logging stays up, and on Windows, where the
-// open log cannot be deleted, the next start removes it.
+// The same policy for the window close, where guest threads still log: the log file is closed and deleted at once
+// and the loggers stay up. Only when that fails does a .discard marker leave the removal to the next start.
 void DiscardSessionLogBeforeHardExit();
 void RemoveDiscardedSessionLogs();
 
