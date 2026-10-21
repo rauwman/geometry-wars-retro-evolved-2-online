@@ -61,10 +61,19 @@ class the game's code or `share/rexglue/rex_app.cpp` uses (`Window`, the public 
 | [0045-imgui-mouse-cursors](../patches/rexglue-sdk/0045-imgui-mouse-cursors.patch) | both | runtime | 0045 | the ImGui drawer applies the cursor shape ImGui asked for through `SDL_SetCursor` |
 | [0046-sdl-video-failure-guidance](../patches/rexglue-sdk/0046-sdl-video-failure-guidance.linux.patch) | Linux | runtime | 0046 | a failed `SDL_InitSubSystem(SDL_INIT_VIDEO)` also writes the SDL error and the DISPLAY/WAYLAND_DISPLAY hint to stderr |
 | [0047-input-activity-callback](../patches/rexglue-sdk/0047-input-activity-callback.patch) | both | runtime | 0047 | a passive per-device callback reports gamepad state changes after the input system reads them, without altering input |
+| [0048-inline-bit-scan-forward](../patches/rexglue-sdk/0048-inline-bit-scan-forward.windows.patch) | Windows | both | 0048 | `rex::bit_scan_forward` is inline in `math.h`, so the GPU plugin no longer calls it through the runtime DLL's import table |
+| [0049-gpu-plugin-thinlto](../patches/rexglue-sdk/0049-gpu-plugin-thinlto.windows.patch) | Windows | GPU plugin | 0049 | `rexgpu-xenos` is built with ThinLTO in Release |
+| [0050-d3d12-unchanged-constant-writes](../patches/rexglue-sdk/0050-d3d12-unchanged-constant-writes.windows.patch) | Windows | GPU plugin | 0050 | float, bool, loop and fetch constants rewritten with the values they have keep the uploaded constant buffers, texture bindings and sampler memo (`gpu_skip_unchanged_constant_writes`); vertex buffer residency is still reset on every fetch constant write |
+| [0051-texture-cache-resolve-target-index](../patches/rexglue-sdk/0051-texture-cache-resolve-target-index.windows.patch) | Windows | GPU plugin | 0051 | the texture cache indexes its textures by base page, so `FindResolveCopyTargets` looks at the textures on the resolve's page |
+| [0052-d3d12-per-draw-loops](../patches/rexglue-sdk/0052-d3d12-per-draw-loops.windows.patch) | Windows | GPU plugin | 0052 | vertex buffer residency invalidated by 64-bit masks, used float constants copied in runs, stencil tile bits read and added in up to two contiguous runs |
+| [0053-gpu-plugin-pgo](../patches/rexglue-sdk/0053-gpu-plugin-pgo.windows.patch) | Windows | GPU plugin | 0053 | `REXGPU_PGO_USE` names a merged profile to optimize `rexgpu-xenos` with in Release |
 | Pins | | | | [patches/rexglue-sdk/baseline.env](../patches/rexglue-sdk/baseline.env): tag, commit and the stock runtime and plugin hashes |
 
 There is no 0034: Hard Corps' 0034 is this project's 0002. 0036 to 0038 are Hard Corps' patches with the cvar renamed
 from `hcu_internal_render_scale` to `gw2_internal_render_scale`; nothing else differs.
+
+0048 to 0053 are ported from Crackdown Recompiled's PR #13 (patches 0097 to 0102 there, head
+`7a90c373b8912a025b2d084cdc696bbd649fdfea`); see [Why 0048 to 0053](#why-0048-to-0053-gpu-command-processor-cost).
 
 ## What each platform gets
 
@@ -90,6 +99,7 @@ from `hcu_internal_render_scale` to `gw2_internal_render_scale`; nothing else di
 | Title threads stopped before teardown (0033) | common | common |
 | Swapchain paint pipeline kept while the format is unchanged | not applicable: the D3D12 presenter has no such cache | 0035 |
 | Host render targets smaller than the draw resolution (0036) | 0037 | 0038 |
+| GPU command processor cost (0048 to 0053) | 0048 to 0053 | not applied |
 
 ## Why 0001: physical release order
 
@@ -407,6 +417,38 @@ What does not follow the host scale, on purpose:
 The pixel position (`ps_param_gen`) is divided by the host scale; the resolve fill, texture offsets and scaled texture
 coordinates keep the draw resolution scale. The viewport and the scissor are rounded outward to whole host pixels and
 the vertex transform follows the rounded viewport edges.
+
+## Why 0048 to 0053: GPU command processor cost
+
+The six patches cut the CPU cost of the GPU command processor per draw. They apply on Windows only: Linux builds and
+their glibc baseline are unchanged, and 0048 and 0051 stay Windows only until a Linux build validates them.
+
+- 0048 defines `rex::bit_scan_forward` inline in `math.h` (all ones when no bit is set, as the platform versions
+  returned) and drops the out-of-line copies, so the per-draw loops no longer call into `rexruntime.dll`.
+- 0049 links `rexgpu-xenos` with ThinLTO in Release, which lets the per-draw path inline across its translation units.
+- 0050 skips the rebuild of derived state when a constant is rewritten with the same value.
+  `gpu_skip_unchanged_constant_writes` (on) turns it off. Vertex buffer residency is always invalidated for fetch constant
+  writes, since the game may have rewritten the vertex data at the same address.
+- 0051 adds the base page to textures index that `FindResolveCopyTargets` uses.
+- 0052 is the per-draw loops of the D3D12 command processor and render target cache described in the table.
+- 0053 adds `REXGPU_PGO_USE` (Release), see below.
+
+The Crackdown dirty-range memo in `RenderTargetCache::SetEdramTilesDirty` is not ported: it caused lighting flicker and
+was removed from the final PR. `SetEdramTilesDirty` is unchanged.
+
+0050 and 0052 differ from Crackdown's patches only in context: the anonymous namespace and the cvar are created by 0050
+here, and 0052 adds its helper to it.
+
+### Profile-guided optimization
+
+`rexgpu-xenos.dll` is built with profile guidance in Release when `patches\rexglue-sdk-pgo\rexgpu-xenos.profdata`
+exists. Without the file the plugin builds as before. The profile is specific to this game and is not provided yet;
+Crackdown's profile must not be used. The fingerprint in `rexruntime-patch.txt` has a `pgo=` line, `off` or
+`use <SHA-256 of the profile>`, so adding, replacing or deleting the profile rebuilds the runtime.
+
+To make a profile, record it manually during gameplay: build the plugin with clang `-fprofile-generate`, play the
+heavy scenes, and merge the raw profiles with Visual Studio's `llvm-profdata merge`. Functions changed since the
+profile was made are optimized without it, so a stale profile only means less optimization.
 
 ## Game code that goes with the patches
 

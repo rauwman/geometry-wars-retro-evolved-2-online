@@ -1,0 +1,16 @@
+diff --git a/src/graphics/CMakeLists.txt b/src/graphics/CMakeLists.txt
+--- a/src/graphics/CMakeLists.txt
++++ b/src/graphics/CMakeLists.txt
+@@ -113,6 +113,12 @@
+ 
+ target_compile_options(rexgpu-xenos PRIVATE -Wno-unused-variable)
+ 
++# ThinLTO lets the command processor's per-draw path inline across the plugin's translation units.
++if(WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
++    target_compile_options(rexgpu-xenos PRIVATE $<$<CONFIG:Release>:-flto=thin>)
++    target_link_options(rexgpu-xenos PRIVATE $<$<CONFIG:Release>:-flto=thin> $<$<CONFIG:Release>:LINKER:/opt:lldlto=3>)
++endif()
++
+ rex_target_pch(rexgpu-xenos
+     <mutex>
+     <unordered_map>

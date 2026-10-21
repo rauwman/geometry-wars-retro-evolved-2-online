@@ -46,3 +46,9 @@
 0045-imgui-mouse-cursors.patch                           windows,linux   rexruntime
 0046-sdl-video-failure-guidance.linux.patch              linux           rexruntime
 0047-input-activity-callback.patch                       windows,linux   rexruntime
+0048-inline-bit-scan-forward.windows.patch               windows         rexruntime,rexgpu-xenos
+0049-gpu-plugin-thinlto.windows.patch                    windows         rexgpu-xenos
+0050-d3d12-unchanged-constant-writes.windows.patch       windows         rexgpu-xenos
+0051-texture-cache-resolve-target-index.windows.patch    windows         rexgpu-xenos
+0052-d3d12-per-draw-loops.windows.patch                  windows         rexgpu-xenos
+0053-gpu-plugin-pgo.windows.patch                        windows         rexgpu-xenos
