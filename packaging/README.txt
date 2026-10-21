@@ -89,8 +89,8 @@ PLAYING
   Unlimited. 60 is the original game. Game speed stays the same at every rate.
 - F2 shows or hides a frame counter in the corner of the window.
 - F7 opens the achievements list.
-- F10 opens the Cheats menu (Invincible, Infinite Shield, Infinite Bombs). All
-  are Off by default. Choices made in the menu last for the current session;
+- F10 opens the Cheats menu (Invincible, Infinite Shield, Infinite Bombs,
+  Movement Speed). All are Off by default. Choices made in the menu last for the current session;
   the launcher's Cheats page saves them.
 - Scores, leaderboards and achievements are kept on this PC only. There is no
   Xbox Live connection and no online play.

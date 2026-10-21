@@ -140,7 +140,11 @@ std::vector<SettingChoice> BloomChoices() {
 std::vector<SettingChoice> FrameRateChoices() {
   std::vector<SettingChoice> choices;
   for (const int fps : kFrameRates) {
-    choices.push_back({std::to_string(fps), fps == kFrameRateUnlimited ? "Unlimited" : std::to_string(fps)});
+    std::string label = fps == kFrameRateUnlimited ? "Unlimited" : std::to_string(fps);
+    if (fps == 60) {
+      label += " - Original";
+    }
+    choices.push_back({std::to_string(fps), label});
   }
   return choices;
 }

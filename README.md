@@ -35,7 +35,7 @@ The full list is in the [v0.5.0 release notes](https://github.com/saulob/geometr
 - Automatic discrete-GPU preference on hybrid systems, and a more reliable Exit Game
 - Frame rate in the window title, and an in-game frame rate counter (**F2**)
 - Local profile and progression, local scores, offline leaderboards, and all 12 achievements (**F7** overlay), with no Xbox Live connection
-- Cheats (Invincible, Infinite Shield, Infinite Bombs), set in the launcher or toggled in game with **F10**
+- Cheats (Invincible, Infinite Shield, Infinite Bombs, Movement Speed), set in the launcher or toggled in game with **F10**
 - Portable `user_data` folder next to the program, with automatic migration of v0.1.0 data
 - **F11** in the launcher and **F11** in the game are independent: the launcher's fullscreen never changes the game's Display mode
 - The mouse cursor shows on mouse activity and hides on keyboard or controller activity during gameplay
@@ -125,8 +125,9 @@ Window size, monitor, VSync, Aspect Ratio and graphics card take effect when you
 - **Invincible**: the player cannot die. A shield or the short protection after a bomb still works as usual.
 - **Infinite Shield**: keeps the player's shield active.
 - **Infinite Bombs**: bombs are not used up when fired. It does not add bombs you do not have.
+- **Movement Speed**: Off, 2x or 4x. Multiplies how fast your ship moves; enemies, shots and the game's speed are unchanged.
 
-All three are Off by default. The launcher's Cheats page saves them and they take effect when you press **PLAY**. Press **F10** while playing to open the Cheats menu: move with Up and Down (arrow keys, D-pad or left stick), toggle with Enter or **A**, close with **F10**, Escape or **B**. The game ignores input while the menu is open. Changes made in the menu last for the current session only; the launcher's saved values are not changed. Scores, leaderboards and achievements are not disabled by cheats.
+All cheats are Off by default. The launcher's Cheats page saves them and they take effect when you press **PLAY**. Press **F10** while playing to open the Cheats menu: move with Up and Down (arrow keys, D-pad or left stick), toggle or change with Enter or **A**, close with **F10**, Escape or **B**. The game ignores input while the menu is open. Changes made in the menu last for the current session only; the launcher's saved values are not changed. Scores, leaderboards and achievements are not disabled by cheats.
 
 ### Controls
 - Xbox controllers work without setup
@@ -188,6 +189,7 @@ How the launcher, settings and installer work is described in [docs/launcher.md]
 - [Offline profile and save](docs/offline-profile.md)
 - [Offline Xbox Live services](docs/offline-live.md)
 - [Cheats](docs/cheats.md)
+- F9 adds one bomb, for debugging/testing.
 - [ReXGlue runtime patches](docs/rexglue-runtime-patch.md)
 - [ReXGlue GPU plugin patch](docs/rexglue-gpu-patch.md)
 - [Saves and settings: the portable user_data folder](docs/user-data.md)

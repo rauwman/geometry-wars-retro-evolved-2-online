@@ -1,6 +1,6 @@
 # Cheats
 
-Three cheats act on the running game through function hooks (`src/cheat_hooks.cpp`). Each reads `gw2::cheats::Enabled`, so the launcher's saved value and the F10 menu's session override both apply at once, with no restart. When a cheat is Off its hook calls the original function unchanged. Scores, leaderboards, achievements, progression and saves are not touched. The launcher page and the F10 menu are described in [launcher.md](launcher.md).
+Four cheats act on the running game through function hooks (`src/cheat_hooks.cpp`). Each reads `gw2::cheats::Enabled` (Movement Speed reads `gw2::cheats::MovementSpeed`), so the launcher's saved value and the F10 menu's session override both apply at once, with no restart. When a cheat is Off its hook calls the original function unchanged. Scores, leaderboards, achievements, progression and saves are not touched. The launcher page and the F10 menu are described in [launcher.md](launcher.md).
 
 The game ships its own developer cheats (`Cheat.Invulnerable`, `Cheat.Shield`, `Cheat.ExtraBomb`), registered as global variables. They show where the real logic is, and the hooks follow them:
 
@@ -17,6 +17,7 @@ All three cheats work on the `Player` class (vtable `0x82001EB8`, methods `0x820
 | `sub_8204EEA8` | `Player::OnHit`, reached by every enemy, hazard and collision that can kill a player | Invincible |
 | `sub_8204FF00` | `Player::Update`, once per frame per player | Infinite Shield |
 | `sub_8204F288` | the player's bomb input, called by `Update`; the only place a bomb is taken | Infinite Bombs |
+| `sub_820453E0` | `Entity::Tick`: the entity's `Update`, then `position += velocity * dt` and the arena walls | Movement Speed |
 
 No other project hook covers these addresses.
 
@@ -31,6 +32,10 @@ The shield is a float of seconds at `player+0x8C`. The constructor `sub_82051448
 ### Infinite Bombs
 
 A bomb count is a 32-bit value at `0x8219D09C + 0x78 * player index` (index at `player+0xA4`, four players). The bomb function takes one only when the count is above zero and the mode has bombs. The hook reads the count before the original and, when the original took exactly one, puts it back. It never adds a bomb: a player with no bombs still gets the game's dry-fire, and a mode without bombs returns from the function before the count is touched.
+
+### Movement Speed
+
+Off (1), 2x or 4x, saved as `gw2_cheat_movement_speed`; any other saved value is Off. Every entity moves in `Entity::Tick`, which calls the entity's `Update` and then adds the velocity at `+0xC`/`+0x10`, times the frame time, to the position at `+0x4`/`+0x8` before the wall checks. For a player only, `Player::Update` scales the velocity by the multiplier after its own acceleration and damping, and the tick divides it back after the position step and the walls. Only the player's displacement changes: the game's speed, the time step, enemies, shots and particles are not touched, and the multipliers are powers of two, so the velocity the player keeps is exact. Off runs `Entity::Tick` unchanged.
 
 ## Modes
 

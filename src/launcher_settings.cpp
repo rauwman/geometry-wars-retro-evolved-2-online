@@ -49,6 +49,7 @@ std::vector<ManagedSetting> BuildManagedSettings() {
       {cheats::kInvincibleKey, ValueKind::kBool},
       {cheats::kInfiniteShieldKey, ValueKind::kBool},
       {cheats::kInfiniteBombsKey, ValueKind::kBool},
+      {cheats::kMovementSpeedKey, ValueKind::kInt},
       {kLauncherXKey, ValueKind::kInt},
       {kLauncherYKey, ValueKind::kInt},
       {kLauncherWidthKey, ValueKind::kInt},

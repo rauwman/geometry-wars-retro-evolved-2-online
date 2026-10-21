@@ -159,7 +159,7 @@ void TestRejection() {
                        ImGuiKey_LeftAlt, ImGuiKey_RightAlt}) {
     CHECK(gw2::KeyboardBindingFor(key, false, false, false).empty());
   }
-  for (ImGuiKey key : {ImGuiKey_F2, ImGuiKey_F3, ImGuiKey_F4, ImGuiKey_F7, ImGuiKey_F10, ImGuiKey_F11,
+  for (ImGuiKey key : {ImGuiKey_F2, ImGuiKey_F3, ImGuiKey_F4, ImGuiKey_F7, ImGuiKey_F9, ImGuiKey_F10, ImGuiKey_F11,
                        ImGuiKey_F12, ImGuiKey_Escape, ImGuiKey_GraveAccent}) {
     CHECK(gw2::KeyboardBindingIsReserved(key));
     CHECK(gw2::KeyboardBindingFor(key, false, false, false).empty());

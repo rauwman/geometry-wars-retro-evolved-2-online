@@ -689,6 +689,12 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
     for (const cheats::CheatInfo& cheat : cheats::kCheats) {
       ui.Toggle(cheat.label, cheat.description, cheat.key, cheats::kCheatDefault, "Off", "On");
     }
+    std::vector<trg::Option> speeds;
+    for (const cheats::MovementSpeedChoice& speed : cheats::kMovementSpeeds) {
+      speeds.push_back({std::to_string(speed.value), speed.label});
+    }
+    ui.Choice(cheats::kMovementSpeedLabel, cheats::kMovementSpeedDescription, cheats::kMovementSpeedKey,
+              std::to_string(cheats::kMovementSpeedDefault).c_str(), speeds);
   }
 
   void PageAchievements(trg::Ui& ui) {

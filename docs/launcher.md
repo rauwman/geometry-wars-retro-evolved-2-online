@@ -128,13 +128,14 @@ When rendering falls below 60, the update uses the same `GameDeltaClock` policy 
 | Invincible | Off, On (default Off) | `gw2_cheat_invincible` | Prevents the player from dying |
 | Infinite Shield | Off, On (default Off) | `gw2_cheat_infinite_shield` | Keeps the player's protective shield active |
 | Infinite Bombs | Off, On (default Off) | `gw2_cheat_infinite_bombs` | Bombs are not consumed when used |
+| Movement Speed | Off, 2x, 4x (default Off) | `gw2_cheat_movement_speed` (1, 2, 4) | Multiplies how fast the player's ship moves |
 
 The game side of each cheat is in [cheats.md](cheats.md).
 
 - The names, cvars and descriptions live once, in `src/cheats.h` (`kCheats`). The launcher page, the in-game menu and `ManagedSettings()` are all built from that list.
 - The cheats are ordinary hot launcher settings: PLAY applies them without a restart, Save keeps them, Reset all settings puts them back to Off. They do not turn off scores, leaderboards, achievements, progression or profile saves.
 - Game code reads `gw2::cheats::Enabled`, which is the saved launcher value unless the in-game menu overrode it in this session.
-- **F10** opens and closes the in-game cheat menu: CHEATS, the three rows, a separator, then `F10 Close` and `Not saved to the launcher`. Up and Down (D-pad, left stick or arrow keys) move, A or Enter toggles a row, and B, Escape or F10 close it. The menu exists only after the game has started, so F10 does nothing over the launcher or the installer. The ReXGlue overlays use other keys.
+- **F10** opens and closes the in-game cheat menu: CHEATS, the four rows, a separator, then `F10 Close` and `Not saved to the launcher`. Up and Down (D-pad, left stick or arrow keys) move, A or Enter toggles a row (Movement Speed steps Off, 2x, 4x), and B, Escape or F10 close it. The menu exists only after the game has started, so F10 does nothing over the launcher or the installer. The ReXGlue overlays use other keys.
 - Menu changes are for the running session only and are never written to `settings.toml`; the next start uses the launcher's values.
 - While the menu is open the game reads no keyboard or controller input (`InputSystem::SetActiveCallback`), and input returns once what was pressed in the menu is released, so closing with B or Escape never also presses it in the game. F10 and Escape are consumed by a window input listener above the ImGui drawer. The achievements overlay does not open while the menu is open, and the menu does not open over it.
 - The menu is a `rex::ui::ImGuiDialog` on the drawer ReXApp already owns; any controller SDL recognizes (Xbox, DualSense, Steam Controller) reaches ImGui through the same `ImGuiGamepad` the launcher uses.
@@ -193,7 +194,7 @@ TRG Launcher is the `third_party/trg-launcher` submodule pinned to `b384a28` (ve
 4. Check the Display page: window size list, monitor, aspect ratio and VSync. Choose another Aspect Ratio and check that Window size changes to a size of that shape and that Render resolution shows its sizes; press PLAY and check that the game restarts once and that the log shows the format and `Guest back buffer`.
 5. Check the Graphics page: render resolution labels, anti-aliasing, multisampling (2x MSAA by default), texture filtering and Bloom (Original by default). On the Gameplay page, check that Frame rate in title is On and Frame counter is Hidden by default.
 5a. Bloom: compare Original, Reduced and Off in a level with many enemies and projectiles (choose each on the Graphics page and press PLAY). Reduced shows less glow than Original and Off shows none. In every mode the geometry, colors and HUD stay intact.
-6. Check the Controls page: keyboard toggle, remapping rows and Keyboard defaults; remap one key, Save, restart and confirm it persisted. Check the Cheats page: Invincible, Infinite Shield and Infinite Bombs, all Off. Turn one On, press Save, restart the executable and confirm it persisted.
+6. Check the Controls page: keyboard toggle, remapping rows and Keyboard defaults; remap one key, Save, restart and confirm it persisted. Check the Cheats page: Invincible, Infinite Shield, Infinite Bombs and Movement Speed, all Off. Turn one On, press Save, restart the executable and confirm it persisted.
 7. Check Achievements: 12 entries, 200G, icons and earned state.
 8. Change one setting and press PLAY. Confirm "Settings saved. Starting game..." and that the game starts.
 9. Press F11 in the game and confirm the window toggles between Windowed and Borderless Fullscreen, with the title unchanged. With Frame rate in title On, the title reads `Geometry Wars: Retro Evolved 2 | FPS: XX.XX` after about a second; with Off it reads `Geometry Wars: Retro Evolved 2`. With Frame counter Shown, press F2 to show `XX FPS  X.X ms` in the top-right corner and F2 again to hide it.

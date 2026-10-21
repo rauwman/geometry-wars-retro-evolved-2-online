@@ -147,6 +147,7 @@ void RegisterGameDefaults(FakeCvars& cvars) {
   for (const cheats::CheatInfo& cheat : cheats::kCheats) {
     cvars.Register(cheat.key, cheats::kCheatDefault ? "true" : "false");
   }
+  cvars.Register(cheats::kMovementSpeedKey, std::to_string(cheats::kMovementSpeedDefault));
 }
 
 void TestShippedValues() {
@@ -563,6 +564,10 @@ void TestFrameLimitSetting() {
   CHECK(choices.size() == 8);
   CHECK(choices.front().value == "30" && choices.front().label == "30");
   CHECK(choices.back().value == "0" && choices.back().label == "Unlimited");
+  CHECK(choices[1].value == "60" && choices[1].label == "60 - Original");
+  for (const SettingChoice& choice : choices) {
+    CHECK(choice.value == "60" || choice.label.find("Original") == std::string::npos);
+  }
 
   const fs::path dir = FreshDir("frame_limit");
   const fs::path file = LauncherSettingsPath(dir);
@@ -1062,12 +1067,12 @@ void TestCheatSettings() {
   for (const ManagedSetting& setting : ManagedSettings()) {
     if (setting.key.starts_with("gw2_cheat_")) {
       ++cheat_keys;
-      CHECK(setting.kind == ValueKind::kBool);
+      CHECK(setting.kind == (setting.key == cheats::kMovementSpeedKey ? ValueKind::kInt : ValueKind::kBool));
       CHECK(!IsWindowSetting(setting.key));
       CHECK(!IsLauncherPlacementSetting(setting.key));
     }
   }
-  CHECK(cheat_keys == 3);
+  CHECK(cheat_keys == 4);
   for (const cheats::CheatInfo& cheat : cheats::kCheats) {
     bool managed = false;
     for (const ManagedSetting& setting : ManagedSettings()) {
@@ -1135,6 +1140,52 @@ void TestCheatSettings() {
   CHECK(reset.find("gw2_cheat_infinite_shield = false") != std::string::npos);
   CHECK(reset.find("gw2_cheat_infinite_bombs = false") != std::string::npos);
   CHECK(reset.find("= true") == std::string::npos);
+}
+
+void TestMovementSpeedSetting() {
+  Section("movement speed setting");
+  const fs::path dir = FreshDir("movement_speed");
+  const fs::path file = LauncherSettingsPath(dir);
+  FakeCvars cvars;
+  RegisterGameDefaults(cvars);
+  GameSettings settings(cvars, file, dir / "missing.toml");
+  settings.Capture();
+  settings.MarkWindowCreated();
+  CHECK(settings.Get(cheats::kMovementSpeedKey) == "1");
+  CHECK(cheats::ParseMovementSpeed(settings.GetInt(cheats::kMovementSpeedKey, 0)) == cheats::kMovementSpeedOff);
+
+  for (const char* value : {"1", "2", "4"}) {
+    settings.Set(cheats::kMovementSpeedKey, value);
+    CHECK(settings.Save());
+    const Values stored = ReadSettingsValues(file);
+    FakeCvars restarted;
+    RegisterGameDefaults(restarted);
+    for (const auto& [key, saved] : stored) {
+      if (restarted.IsRegistered(key)) {
+        restarted.values[key] = saved;
+      }
+    }
+    GameSettings reloaded(restarted, file, dir / "missing.toml");
+    reloaded.Capture();
+    CHECK(reloaded.Get(cheats::kMovementSpeedKey) == value);
+    CHECK(cheats::ParseMovementSpeed(reloaded.GetInt(cheats::kMovementSpeedKey, 0)) == std::stoi(value));
+    for (const cheats::CheatInfo& cheat : cheats::kCheats) {
+      CHECK(!reloaded.GetBool(cheat.key, true));
+    }
+  }
+
+  for (const char* corrupt : {"3", "0", "-4", "abc", ""}) {
+    settings.Set(cheats::kMovementSpeedKey, corrupt);
+    CHECK(cheats::ParseMovementSpeed(settings.GetInt(cheats::kMovementSpeedKey, cheats::kMovementSpeedDefault)) ==
+          cheats::kMovementSpeedOff);
+  }
+
+  settings.Set(cheats::kMovementSpeedKey, "4");
+  CHECK(settings.Save());
+  settings.ResetToDefaults();
+  CHECK(settings.Get(cheats::kMovementSpeedKey) == "1");
+  CHECK(settings.Save());
+  CHECK(ReadText(file).find("gw2_cheat_movement_speed = 1") != std::string::npos);
 }
 
 void TestUnregisteredCheatIsRejected() {
@@ -1300,6 +1351,7 @@ int main() {
   TestGraphicsAdapterSetting();
   TestLauncherPlacementSettings();
   TestCheatSettings();
+  TestMovementSpeedSetting();
   TestUnregisteredCheatIsRejected();
   TestSettingsFollowTheUserDataRoot();
   TestDisplayModeStaysWithTheGame();

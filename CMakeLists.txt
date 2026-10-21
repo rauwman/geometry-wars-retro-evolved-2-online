@@ -180,6 +180,7 @@ set(GW2_SOURCES
     src/cheat_menu.cpp
     src/cheat_hooks.cpp
     src/cheats.cpp
+    src/debug_bomb.cpp
     src/bloom_fix.cpp
     src/crash_report.cpp
     src/rumble.cpp
