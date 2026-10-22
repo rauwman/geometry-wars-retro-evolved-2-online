@@ -448,9 +448,9 @@ void TestPackagingNames() {
         std::string::npos);
   CHECK(config.find("GeometryWarsRetroEvolved2Recompiled-v\" + version.CoreString() + \"-x86_64.AppImage") !=
         std::string::npos);
-  CHECK(windows_package.find("GeometryWarsRetroEvolved2-v$Version-windows-x64") != std::string::npos);
+  CHECK(windows_package.find("GeometryWarsRetroEvolved2-v$ModVersion-windows-x64") != std::string::npos);
   CHECK(windows_package.find("trg-updater.exe") != std::string::npos);
-  CHECK(linux_package.find("GeometryWarsRetroEvolved2Recompiled-v$VERSION-x86_64") != std::string::npos);
+  CHECK(linux_package.find("GeometryWarsRetroEvolved2Recompiled-v$MOD_VERSION-x86_64") != std::string::npos);
   CHECK(tests.find("trg-updater.exe") != std::string::npos);
   CHECK(tests.find("assets\\launcher\\header-art.png") != std::string::npos);
 }
