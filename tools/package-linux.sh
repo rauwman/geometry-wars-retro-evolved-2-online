@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the Linux x86_64 Release and packages GeometryWarsRetroEvolved2Recompiled-v<version>-modded-v<mod version>-x86_64.AppImage
+# Builds the Linux x86_64 Release and packages GeometryWarsRetroEvolved2Recompiled-v<mod version>-x86_64.AppImage
 # and a .tar.gz with the AppImage into dist/.
 # Local only: nothing is published, tagged or uploaded. Run on Linux or WSL.
 #
@@ -66,7 +66,7 @@ APP_ID="$(sed -nE 's/^[[:space:]]*constexpr char kApplicationId\[\] = "([^"]+)";
 [[ "$APP_ID" =~ ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+$ ]] ||
   fail "src/launcher_platform_linux.cpp must declare kApplicationId exactly once, as a dotted name on one line (found: '$APP_ID')"
 [ -f "$ROOT/packaging/linux/$APP_ID.desktop" ] || fail "packaging/linux/$APP_ID.desktop is missing: the desktop file is named after kApplicationId"
-NAME="GeometryWarsRetroEvolved2Recompiled-v$VERSION-modded-v$MOD_VERSION-x86_64"
+NAME="GeometryWarsRetroEvolved2Recompiled-v$MOD_VERSION-x86_64"
 echo "Geometry Wars: Retro Evolved 2 Recompiled $VERSION - Linux AppImage (local only)"
 
 echo "== Host"
@@ -100,7 +100,7 @@ mkdir -p "$WORK/game/extracted" "$WORK/third_party" "$WORK/tools"
 for f in CMakeLists.txt CMakePresets.json geometry_wars_retro_evolved_2_manifest.toml LICENSE tools/build-patched-rexruntime.sh; do
   rsync -a "$ROOT/$f" "$WORK/$f"
 done
-for d in config src tests generated packaging patches/rexglue-sdk third_party/trg-launcher; do
+for d in assets config src tests generated packaging patches/rexglue-sdk patches/trg-launcher third_party/trg-launcher; do
   mkdir -p "$WORK/$d"
   rsync -a --delete --exclude .git "$ROOT/$d/" "$WORK/$d/"
 done
@@ -146,7 +146,7 @@ echo "== Build ($PRESET)"
 BIN="$WORK/out/build/$PRESET"
 [ "$CLEAN" = 1 ] && rm -rf "$BIN"
 (cd "$WORK" && cmake --preset "$PRESET" >/dev/null && cmake --build --preset "$PRESET")
-for f in geometry_wars_retro_evolved_2 librexruntime.so librexgpu-xenos.so geometry_wars_retro_evolved_2.toml; do
+for f in geometry_wars_retro_evolved_2 librexruntime.so librexgpu-xenos.so geometry_wars_retro_evolved_2.toml assets/launcher/header-art.png; do
   [ -f "$BIN/$f" ] || fail "build output is missing $f"
 done
 bash "$PATCHED" --check "$SDK" --config Release --staged "$BIN" || fail "the build folder does not hold the patched ReXGlue libraries"
@@ -158,6 +158,8 @@ rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/lib" "$DOC"
 cp "$BIN/geometry_wars_retro_evolved_2" "$BIN/librexruntime.so" "$BIN/librexgpu-xenos.so" \
   "$BIN/geometry_wars_retro_evolved_2.toml" "$APPDIR/usr/bin/"
+mkdir -p "$APPDIR/usr/bin/assets/launcher"
+cp "$BIN/assets/launcher/header-art.png" "$APPDIR/usr/bin/assets/launcher/"
 # Debug sections carry the build machine's folders.
 strip --strip-unneeded "$APPDIR/usr/bin/geometry_wars_retro_evolved_2"
 # ReXGlue needs GLIBCXX_3.4.32 (GCC 13); AppRun uses this copy only on systems without it.
@@ -190,7 +192,8 @@ cp "$ICONS/app-icon-256.png" "$APPDIR/geometry_wars_retro_evolved_2.png"
 cp "$ICONS/app-icon-256.png" "$APPDIR/.DirIcon"
 chmod 755 "$APPDIR/AppRun" "$APPDIR/usr/bin/geometry_wars_retro_evolved_2"
 chmod 644 "$APPDIR/"*.desktop "$APPDIR/"*.png "$APPDIR/.DirIcon" "$APPDIR/usr/bin/"*.so \
-  "$APPDIR/usr/bin/geometry_wars_retro_evolved_2.toml" "$APPDIR/usr/lib/"* "$DOC/"*
+  "$APPDIR/usr/bin/geometry_wars_retro_evolved_2.toml" "$APPDIR/usr/bin/assets/launcher/header-art.png" \
+  "$APPDIR/usr/lib/"* "$DOC/"*
 find "$THEME" -type f -exec chmod 644 {} +
 bash "$PATCHED" --check "$SDK" --config Release --staged "$APPDIR/usr/bin" || fail "the AppDir does not hold the patched ReXGlue libraries"
 
@@ -228,6 +231,7 @@ EXPECTED=".DirIcon
 AppRun
 geometry_wars_retro_evolved_2.png
 $APP_ID.desktop
+usr/bin/assets/launcher/header-art.png
 usr/bin/geometry_wars_retro_evolved_2
 usr/bin/geometry_wars_retro_evolved_2.toml
 usr/bin/librexgpu-xenos.so
@@ -298,7 +302,7 @@ trap 'rm -rf "$CHECK" "$BUNDLE"' EXIT
 mkdir -p "$BUNDLE/$NAME"
 cp "$OUT" "$BUNDLE/$NAME/"
 cat > "$BUNDLE/$NAME/README.txt" <<EOF
-Geometry Wars: Retro Evolved 2 Recompiled $VERSION, mod v$MOD_VERSION (Linux x86_64)
+Geometry Wars: Retro Evolved 2 Recompiled v$MOD_VERSION, based on upstream $VERSION (Linux x86_64)
 
 Unpack this archive (not just the AppImage file) and start $NAME.AppImage with a double click.
 Put the folder wherever you like: the game files, settings and saves are stored next to the AppImage.

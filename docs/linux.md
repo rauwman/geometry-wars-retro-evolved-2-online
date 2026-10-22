@@ -20,7 +20,7 @@ is older than GCC 13.
 
 ## Installing
 
-1. Download **GeometryWarsRetroEvolved2Recompiled-v…-modded-v…-x86_64.tar.gz** and unpack it (right-click > **Extract**,
+1. Download **GeometryWarsRetroEvolved2Recompiled-v…-x86_64.tar.gz** and unpack it (right-click > **Extract**,
    or `tar xzf`) into a folder you can write to. A browser download of a bare AppImage has no executable bit; an
    unpacked `.tar.gz` keeps it. The AppImage is also released on its own.
 2. If the AppImage does not start, make it executable: right-click it > **Properties** > **Permissions** >
@@ -67,8 +67,8 @@ failure rules.
   default size for a moment. Under Wayland the compositor decides the position, so only the size and the maximized
   state are restored.
 - **Frame limiter.** Rates below Unlimited are paced with `std::chrono::steady_clock`, a sleep until shortly before
-  the deadline, and a brief yield loop; Windows uses a high-resolution waitable timer. The rates, the game's time step
-  and the high-frame-rate present change are the same code on both systems.
+  the deadline, and a brief yield loop; Windows uses a high-resolution waitable timer. The rates, the game's time step,
+  the simulation gate and the high-frame-rate present change are the same code on both systems.
 - **VSync.** The setting controls Vulkan's present mode (`vulkan_allow_present_mode_immediate`): **Off** allows
   immediate presentation (tearing), **On** uses mailbox or FIFO. Windows controls D3D12 tearing instead.
 - **Window icon.** The program sets its window icon from the AppImage's own icon file, so it does not depend on the
@@ -94,7 +94,7 @@ failure rules.
   [rexglue-gpu-patch.md](rexglue-gpu-patch.md)), and the reporter confirmed it.
 - **The same symptom on a Steam Deck** (about 30 FPS, the music slowing down with it) was traced in this fork to the
   runtime's write-watch fault handler, which searched `/proc/self/maps` for every fault under a global lock, and is
-  fixed by patches 0040 and 0041 ([the details](rexglue-runtime-patch.md#why-0040-and-0041)): 60 to 90 FPS on the
+  fixed by patches 0048 and 0049 ([the details](rexglue-runtime-patch.md#why-0048-and-0049)): 60 to 90 FPS on the
   maintainer's Deck. Whether the Steam Machine report has the same cause is not confirmed. Linux 6.11 or newer answers
   the lookup directly; older kernels use the second patch's path. `--procmap_query=false` forces that path.
 - Controller vibration (Controls > Vibration, off by default) is included in the Linux build but has not been confirmed on a real controller or a Steam Deck.
@@ -168,7 +168,7 @@ The script copies the sources to `~/gw2-linux-build` (set `GW2_WORK` to change i
 SDK and appimagetool with their SHA-256 checks, prepares the patched ReXGlue runtime and GPU plugin
 the same way `tools/build.sh` does, builds the AppImage runtime (below), builds the `linux-amd64-release` preset, checks the libraries again in the build
 folder and the AppDir, checks that the AppDir holds no game files, packages, saves, logs or local paths, and writes
-`GeometryWarsRetroEvolved2Recompiled-v<version>-modded-v<mod version>-x86_64.AppImage` and a `.tar.gz` with the same
+`GeometryWarsRetroEvolved2Recompiled-v<mod version>-x86_64.AppImage` and a `.tar.gz` with the same
 name that holds the AppImage (unpacking it keeps the executable bit), each with its `.sha256`, in `dist/` (`--out-dir DIR`
 writes them to DIR instead). The version is the `project()` VERSION in `CMakeLists.txt`, the mod version its
 `GW2_MOD_VERSION`. The script publishes nothing, and the game's `default.xex` only enters the temporary build folder as

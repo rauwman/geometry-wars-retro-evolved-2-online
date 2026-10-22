@@ -50,6 +50,7 @@ inline constexpr char kLauncherMaximizedKey[] = "gw2_launcher_maximized";
 inline constexpr char kLauncherFullscreenKey[] = "gw2_launcher_fullscreen";
 inline constexpr char kShowFrameCounterKey[] = "gw2_show_frame_counter";
 inline constexpr bool kShowFrameCounterDefault = false;
+inline constexpr char kDetailedLoggingKey[] = "detailed_logging";
 
 // The friends leaderboard account. The address and invite code come with the release; the name and token are made
 // by the launcher's Online page. Reset to defaults leaves all four alone.
@@ -96,8 +97,8 @@ class CvarAccess {
   virtual bool RestartPending() const = 0;
 };
 
-// Sets the Xenos native_2x_msaa from the Multisampling choice, also replacing a native_2x_msaa = false that older
-// launchers saved for "Off". The render target caches read it once, when the runtime is set up.
+// Sets the Xenos native_2x_msaa from the Multisampling choice. The render target caches read it once, when the
+// runtime is set up.
 void ApplyMultisampling(CvarAccess& cvars);
 
 // Makes the D3D12 render target path the host one when Internal render resolution is below 100% and no path is

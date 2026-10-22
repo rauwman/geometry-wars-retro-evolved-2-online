@@ -52,13 +52,21 @@ class the game's code or `share/rexglue/rex_app.cpp` uses (`Window`, the public 
 | [0036-internal-render-scale](../patches/rexglue-sdk/0036-internal-render-scale.patch) | both | GPU plugin | 0036 | the `gw2_internal_render_scale` cvar and the split of the render resolution into the host render target scale and the whole scale of the EDRAM, resolves and textures; sizes, viewport, scissor and the pixel position of the shader translators (render target cache base, `draw.cpp`, texture cache base, DXBC and SPIR-V translators) |
 | [0037-d3d12-internal-render-scale](../patches/rexglue-sdk/0037-d3d12-internal-render-scale.windows.patch) | Windows | GPU plugin | 0037 | host render target sizes, transfers, clears and viewport at the host scale, and the EDRAM dump sampling the smaller render targets (D3D12) |
 | [0038-vulkan-internal-render-scale](../patches/rexglue-sdk/0038-vulkan-internal-render-scale.linux.patch) | Linux | GPU plugin | 0038 | the same for the Vulkan render target cache and command processor |
-| [0040-linux-procmap-query](../patches/rexglue-sdk/0040-linux-procmap-query.linux.patch) | Linux | runtime | - | `QueryProtect`, `Protect` with an old access and `IsRangeFullyMapped` ask the kernel for one mapping with the `PROCMAP_QUERY` ioctl (Linux 6.11+) instead of reading `/proc/self/maps` (`src/core/memory_posix.cpp`) |
-| [0041-linux-skip-slow-queryprotect](../patches/rexglue-sdk/0041-linux-skip-slow-queryprotect.linux.patch) | Linux | both | - | without that ioctl the write-watch fault handler skips its `QueryProtect` recheck and tells a watch that is already cleared from the heap's own bookkeeping (`mmio_handler.cpp`, `xmemory.cpp`, `xmemory.h`, `utils.h`) |
+| [0039-lock-free-guest-clock](../patches/rexglue-sdk/0039-lock-free-guest-clock.patch) | both | runtime | 0039 | guest clock reads take an atomic clock segment instead of a mutex (`src/core/clock.cpp`) |
+| [0040-d3d12-transfer-short-circuit](../patches/rexglue-sdk/0040-d3d12-transfer-short-circuit.windows.patch) | Windows | GPU plugin | 0040 | a draw with no render target transfers and no resolve clear skips the D3D12 transfer pass (`gw2_d3d12_transfer_short_circuit`) |
+| [0041-d3d12-sampler-memo](../patches/rexglue-sdk/0041-d3d12-sampler-memo.windows.patch) | Windows | GPU plugin | 0041 | sampler parameters are recomputed only when their inputs change (`gw2_d3d12_sampler_memo`) |
+| [0042-shared-memory-fast-path](../patches/rexglue-sdk/0042-shared-memory-fast-path.patch) | both | GPU plugin | 0042 | `SharedMemory::RequestRanges` returns without the global critical region when every requested page is valid and allocated |
+| [0043-gpu-draw-state-memo](../patches/rexglue-sdk/0043-gpu-draw-state-memo.patch) | both | GPU plugin | 0043 | the common render target cache skips an ownership claim that repeats the previous draw's ranges (`gpu_draw_state_memo`) |
+| [0044-d3d12-async-submission](../patches/rexglue-sdk/0044-d3d12-async-submission.windows.patch) | Windows | GPU plugin | 0044 | a dedicated thread replays, executes and fences the recorded command list of a submission (`d3d12_async_submission`) |
+| [0045-imgui-mouse-cursors](../patches/rexglue-sdk/0045-imgui-mouse-cursors.patch) | both | runtime | 0045 | the ImGui drawer applies the cursor shape ImGui asked for through `SDL_SetCursor` |
+| [0046-sdl-video-failure-guidance](../patches/rexglue-sdk/0046-sdl-video-failure-guidance.linux.patch) | Linux | runtime | 0046 | a failed `SDL_InitSubSystem(SDL_INIT_VIDEO)` also writes the SDL error and the DISPLAY/WAYLAND_DISPLAY hint to stderr |
+| [0047-input-activity-callback](../patches/rexglue-sdk/0047-input-activity-callback.patch) | both | runtime | 0047 | a passive per-device callback reports gamepad state changes after the input system reads them, without altering input |
+| [0048-linux-procmap-query](../patches/rexglue-sdk/0048-linux-procmap-query.linux.patch) | Linux | runtime | - | `QueryProtect`, `Protect` with an old access and `IsRangeFullyMapped` ask the kernel for one mapping with the `PROCMAP_QUERY` ioctl (Linux 6.11+) instead of reading `/proc/self/maps` (`src/core/memory_posix.cpp`) |
+| [0049-linux-skip-slow-queryprotect](../patches/rexglue-sdk/0049-linux-skip-slow-queryprotect.linux.patch) | Linux | both | - | without that ioctl the write-watch fault handler skips its `QueryProtect` recheck and tells a watch that is already cleared from the heap's own bookkeeping (`mmio_handler.cpp`, `xmemory.cpp`, `xmemory.h`, `utils.h`) |
 | Pins | | | | [patches/rexglue-sdk/baseline.env](../patches/rexglue-sdk/baseline.env): tag, commit and the stock runtime and plugin hashes |
 
 There is no 0034: Hard Corps' 0034 is this project's 0002. 0036 to 0038 are Hard Corps' patches with the cvar renamed
-from `hcu_internal_render_scale` to `gw2_internal_render_scale`; nothing else differs. 0039 is unused (a diagnostic
-patch that was not kept). 0040 and 0041 are this project's own.
+from `hcu_internal_render_scale` to `gw2_internal_render_scale`; nothing else differs. 0039 to 0047 come from the upstream port (v0.5.0). 0048 and 0049 are this fork's own.
 
 ## What each platform gets
 
@@ -84,7 +92,7 @@ patch that was not kept). 0040 and 0041 are this project's own.
 | Title threads stopped before teardown (0033) | common | common |
 | Swapchain paint pipeline kept while the format is unchanged | not applicable: the D3D12 presenter has no such cache | 0035 |
 | Host render targets smaller than the draw resolution (0036) | 0037 | 0038 |
-| Write-watch fault handler cost (0040, 0041) | not needed: `VirtualQuery` answers directly | 0040, and 0041 where the kernel lacks the ioctl |
+| Write-watch fault handler cost (0048, 0049) | not needed: `VirtualQuery` answers directly | 0048, and 0049 where the kernel lacks the ioctl |
 
 ## Why 0001: physical release order
 
@@ -311,7 +319,7 @@ MSAA; whether it creates any 2x MSAA render target is not known.
 
 ## Why 0029
 
-While any ImGui dialog exists (the game keeps its frame counter and cursor timer as dialogs), the presenter paints from
+While any ImGui dialog exists (the game keeps its frame counter and cursor sync as dialogs), the presenter paints from
 the UI thread, and the ImGui drawer asks for a repaint after every frame. Each guest frame was presented as it arrived,
 and the UI repaint presented it again at the next vertical blank: two presents for every guest frame. On Linux, with no
 vertical blank ticks, the repaint ran as fast as the GPU allowed. A repaint for the UI alone now waits for the next guest
@@ -403,7 +411,7 @@ The pixel position (`ps_param_gen`) is divided by the host scale; the resolve fi
 coordinates keep the draw resolution scale. The viewport and the scissor are rounded outward to whole host pixels and
 the vertex transform follows the rounded viewport edges.
 
-## Why 0040 and 0041
+## Why 0048 and 0049
 
 The runtime watches guest memory the GPU has read: it protects those pages read-only on the host, and a write to one
 faults. The fault handler (`MMIOHandler::ExceptionCallback`) takes the global critical region, invalidates the GPU's copy
@@ -418,16 +426,16 @@ sound slow down with it. The main thread was not busy; it waited for that lock. 
 clock or the frame limiter changed nothing. A sampler of `/proc/<pid>/task` found the waiting threads on one futex, the
 global lock.
 
-- **0040** asks the kernel for just the mapping that contains the address, with the `PROCMAP_QUERY` ioctl on
+- **0048** asks the kernel for just the mapping that contains the address, with the `PROCMAP_QUERY` ioctl on
   `/proc/self/maps` (Linux 6.11 and newer). The text parse stays as the fallback for older kernels and when the call
   fails. The cvar `procmap_query = false` forces the fallback. A fault then costs about 0.035 ms, and the Steam Deck
   runs at 60 to 90 FPS.
-- **0041** is for kernels without the ioctl, where 0040 falls back to the slow parse. `memory::IsQueryProtectCheap()`
+- **0049** is for kernels without the ioctl, where 0048 falls back to the slow parse. `memory::IsQueryProtectCheap()`
   tells the handler whether `QueryProtect` is cheap (always on Windows and macOS, on Linux when the ioctl works). If not,
   the handler skips its recheck, and `Memory::AccessViolationCallback` asks `PhysicalHeap::IsStaleWriteFault` instead:
   if the heap's bookkeeping says the page is no longer watched and the guest sees it as writable, another thread has
   already cleared the watch, so the host page is made writable and the access is retried. That costs about 0.04 ms per
-  fault, measured with `procmap_query = false`, the same as 0040.
+  fault, measured with `procmap_query = false`, the same as 0048.
 
 Windows and macOS behave as before.
 
