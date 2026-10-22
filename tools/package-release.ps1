@@ -6,7 +6,7 @@
 .DESCRIPTION
   Builds into build-release\ (the normal build\ folder is not touched), stages the files
   the program needs, refuses to continue if the staging folder holds game or user files,
-  then writes dist\GeometryWarsRetroEvolved2.zip and its .sha256 file (no version in the name: the launcher's self-update looks for exactly this name).
+  then writes dist\GeometryWarsRetroEvolved2-windows-x64.zip and its .sha256 file (no version in the name: the launcher's self-update looks for exactly this name).
   The version is set(GW2_MOD_VERSION) in CMakeLists.txt; the project VERSION is the upstream version it is based on.
 
 .EXAMPLE
@@ -121,10 +121,10 @@ $cmake = Get-Content (Join-Path $Root 'CMakeLists.txt') -Raw
 if ($cmake -notmatch '(?m)^\s*project\(\s*geometry_wars_retro_evolved_2\s+VERSION\s+(\d+\.\d+\.\d+)') { throw 'Project VERSION not found in CMakeLists.txt' }
 $Version = $Matches[1]
 if ($cmake -match '(?m)^\s*set\(GW2_VERSION_SUFFIX\s+"([^"]*)"\)') { $Version += $Matches[1] }
-# The fork's own version, set(GW2_MOD_VERSION "1.0.0"): GeometryWarsRetroEvolved2.zip. The project VERSION is the upstream version.
+# The fork's own version, set(GW2_MOD_VERSION "1.0.0"): GeometryWarsRetroEvolved2-windows-x64.zip. The project VERSION is the upstream version.
 if ($cmake -notmatch '(?m)^\s*set\(\s*GW2_MOD_VERSION\s+"(\d+\.\d+\.\d+)"\s*\)') { throw 'set(GW2_MOD_VERSION "x.y.z") not found in CMakeLists.txt' }
 $ModVersion = $Matches[1]
-$Name = "GeometryWarsRetroEvolved2"
+$Name = "GeometryWarsRetroEvolved2-windows-x64"
 $ForFriends = [bool]($ServerUrl -or $InviteCode)
 if ($ForFriends) {
     if (-not $ServerUrl -or -not $InviteCode) { throw 'Give both -ServerUrl and -InviteCode, or neither' }
