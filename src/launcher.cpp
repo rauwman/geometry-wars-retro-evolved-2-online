@@ -59,6 +59,8 @@ constexpr ImGuiConfigFlags kNavFlags = ImGuiConfigFlags_NavEnableKeyboard | ImGu
 constexpr char kAuthorUrl[] = "https://github.com/saulob";
 constexpr char kRepositoryUrl[] = "https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled";
 constexpr char kAuthorText[] = "BY SAULOB";
+constexpr char kModUrl[] = "https://github.com/rauwman";
+constexpr char kModText[] = "MOD BY RAUWMAN";
 constexpr char kRepositoryText[] = "github.com/rauwman/geometry-wars-retro-evolved-2-recompiled";
 constexpr char kShowLauncherHelp[] = "Off starts the game directly. Hold Shift while starting to bring it back.";
 constexpr char kWindowSizeHelp[] =
@@ -455,6 +457,8 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
         {"PC PORT   \xC2\xB7   ", ""},
         {"v" GW2_PORT_VERSION "   \xC2\xB7   ", ""},
         {kAuthorText, kAuthorUrl},
+        {"   \xC2\xB7   ", ""},
+        {kModText, kModUrl},
     };
     c.branding.subtitle_color = kAccent;
     const float art_aspect =
