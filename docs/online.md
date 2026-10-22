@@ -44,7 +44,7 @@ A public release carries no server address and no invite code. There are two way
    .\tools\package-release.ps1 -ServerUrl https://gw2.example.org -InviteCode the-shared-invite-code
    ```
 
-   The result is `dist\GeometryWarsRetroEvolved2-v<mod version>-windows-x64-friends.zip`. Share it privately only: the
+   The result is `dist\GeometryWarsRetroEvolved2-friends.zip`. Share it privately only: the
    invite code can be read from the file. The normal `package-release.ps1` run (no parameters) refuses to package a
    build whose configuration holds an address or a code, so a public ZIP cannot carry them by accident.
 

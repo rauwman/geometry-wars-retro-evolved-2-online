@@ -296,24 +296,28 @@ bash "$ROOT/tools/check-glibc-baseline.sh" --max "$MAX_GLIBC" "$OUT" "$CHECK/squ
 
 echo "== Installer bundle"
 # A browser download drops the executable bit of an AppImage; unpacking a .tar.gz keeps it, so the AppImage
-# starts with a double click. The folder inside the archive is named like the AppImage.
+# starts with a double click. The folder and the AppImage inside the archive have no version in their names: the
+# launcher's self-update replaces the AppImage under its installed name, so a versioned name would go stale, and
+# shortcuts or Steam entries keep working. (The AppImage released on its own keeps the versioned name.)
 BUNDLE="$(mktemp -d)"
 trap 'rm -rf "$CHECK" "$BUNDLE"' EXIT
-mkdir -p "$BUNDLE/$NAME"
-cp "$OUT" "$BUNDLE/$NAME/"
-cat > "$BUNDLE/$NAME/README.txt" <<EOF
+INNER="GeometryWarsRetroEvolved2Recompiled"
+mkdir -p "$BUNDLE/$INNER"
+cp "$OUT" "$BUNDLE/$INNER/$INNER.AppImage"
+cat > "$BUNDLE/$INNER/README.txt" <<EOF
 Geometry Wars: Retro Evolved 2 Recompiled v$MOD_VERSION, based on upstream $VERSION (Linux x86_64)
 
-Unpack this archive (not just the AppImage file) and start $NAME.AppImage with a double click.
+Unpack this archive (not just the AppImage file) and start $INNER.AppImage with a double click.
 Put the folder wherever you like: the game files, settings and saves are stored next to the AppImage.
+The launcher can update itself (the file name stays the same). To update by hand, unpack a newer archive over this folder.
 If the AppImage does not start, make it executable: right-click > Properties > Permissions > "Is executable".
 
 Steam Deck: do this in Desktop Mode, then add the game with Games > Add a Non-Steam Game to My Library.
 EOF
-chmod 755 "$BUNDLE/$NAME" "$BUNDLE/$NAME/$NAME.AppImage"
-chmod 644 "$BUNDLE/$NAME/README.txt"
+chmod 755 "$BUNDLE/$INNER" "$BUNDLE/$INNER/$INNER.AppImage"
+chmod 644 "$BUNDLE/$INNER/README.txt"
 TARBALL="$OUT_DIR/$NAME.tar.gz"
-tar -C "$BUNDLE" --sort=name --owner=0 --group=0 --numeric-owner -cf - "$NAME" | gzip -9n > "$TARBALL"
+tar -C "$BUNDLE" --sort=name --owner=0 --group=0 --numeric-owner -cf - "$INNER" | gzip -9n > "$TARBALL"
 (cd "$OUT_DIR" && sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
 
 echo

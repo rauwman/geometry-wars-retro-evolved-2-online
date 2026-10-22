@@ -79,12 +79,9 @@ trg::update::UpdateConfig MakeUpdateConfig(const std::filesystem::path& install_
 
 #if defined(_WIN32)
   config.package_kind = UpdatePackageKind::kZip;
-  config.asset_name = [](const SemanticVersion& version) {
-    return "GeometryWarsRetroEvolved2-v" + version.CoreString() + "-windows-x64.zip";
-  };
-  config.checksum_asset_name = [](const SemanticVersion& version) {
-    return "GeometryWarsRetroEvolved2-v" + version.CoreString() + "-windows-x64.sha256";
-  };
+  // The Windows ZIP has no version in its name, so the folder people unpack it into does not go stale after an update.
+  config.asset_name = [](const SemanticVersion&) { return std::string("GeometryWarsRetroEvolved2.zip"); };
+  config.checksum_asset_name = [](const SemanticVersion&) { return std::string("GeometryWarsRetroEvolved2.sha256"); };
   config.restart_executable = install_dir / "geometry_wars_retro_evolved_2.exe";
   config.required_staged_files = {"geometry_wars_retro_evolved_2.exe"};
   config.install_supported = std::filesystem::exists(install_dir / "trg-updater.exe");

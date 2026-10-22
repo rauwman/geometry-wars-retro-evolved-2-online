@@ -23,8 +23,11 @@ is older than GCC 13.
 1. Download **GeometryWarsRetroEvolved2Recompiled-v…-x86_64.tar.gz** and unpack it (right-click > **Extract**,
    or `tar xzf`) into a folder you can write to. A browser download of a bare AppImage has no executable bit; an
    unpacked `.tar.gz` keeps it. The AppImage is also released on its own.
+   The unpacked folder and AppImage have no version in their names, so the launcher's self-update (which keeps the file name)
+   and any shortcut or Steam entry keep working. To update by hand, unpack a newer archive over the same folder; `game`,
+   `user_data` and `logs` stay.
 2. If the AppImage does not start, make it executable: right-click it > **Properties** > **Permissions** >
-   **Is executable**, or `chmod +x GeometryWarsRetroEvolved2Recompiled-v*-x86_64.AppImage`.
+   **Is executable**, or `chmod +x GeometryWarsRetroEvolved2Recompiled*.AppImage`.
 3. Run it (double click). The launcher opens.
 4. On the **Play** page click **Install from package...** and pick your package. The game files are copied into a
    `game` folder next to the AppImage.
@@ -169,7 +172,7 @@ SDK and appimagetool with their SHA-256 checks, prepares the patched ReXGlue run
 the same way `tools/build.sh` does, builds the AppImage runtime (below), builds the `linux-amd64-release` preset, checks the libraries again in the build
 folder and the AppDir, checks that the AppDir holds no game files, packages, saves, logs or local paths, and writes
 `GeometryWarsRetroEvolved2Recompiled-v<mod version>-x86_64.AppImage` and a `.tar.gz` with the same
-name that holds the AppImage (unpacking it keeps the executable bit), each with its `.sha256`, in `dist/` (`--out-dir DIR`
+name that holds the AppImage as `GeometryWarsRetroEvolved2Recompiled/GeometryWarsRetroEvolved2Recompiled.AppImage`, without a version in the names (unpacking it keeps the executable bit; the launcher's self-update keeps the installed file name, so a versioned name would go stale), each with its `.sha256`, in `dist/` (`--out-dir DIR`
 writes them to DIR instead). The version is the `project()` VERSION in `CMakeLists.txt`, the mod version its
 `GW2_MOD_VERSION`. The script publishes nothing, and the game's `default.xex` only enters the temporary build folder as
 input for code generation, never the AppImage. It stops if the bundled settings file names a leaderboard server or an
