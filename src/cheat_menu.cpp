@@ -14,6 +14,7 @@
 #include <rex/ui/window_listener.h>
 
 #include "achievements_overlay_rules.h"
+#include "add_lives.h"
 #include "cheat_menu_rules.h"
 #include "cheats.h"
 #include "debug_bomb.h"
@@ -142,6 +143,9 @@ class CheatMenuDialog final : public rex::ui::ImGuiDialog {
       if (DrawRow(cheats::kMovementSpeedLabel, cheats::MovementSpeedLabel(speed),
                   speed != cheats::kMovementSpeedOff, kCheatMenuRows.size(), accent, focus)) {
         cheats::CycleMovementSpeedForSession();
+      }
+      if (DrawRow(kAddLivesLabel, kAddLivesState, false, kCheatMenuRows.size() + 1, accent, focus)) {
+        add_lives::Request();
       }
       ImGui::Separator();
       ImGui::TextColored(kDim, "%s", kCheatMenuCloseHint);

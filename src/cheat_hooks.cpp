@@ -3,6 +3,7 @@
 
 #include <rex/hook.h>
 
+#include "add_lives.h"
 #include "cheat_rules.h"
 #include "cheats.h"
 #include "debug_bomb.h"
@@ -49,6 +50,18 @@ void GrantDebugBombs(uint8_t* base, uint32_t index) {
   gw2::debug_bomb::GameGrants().Grant(index, bombs);
 }
 
+void GrantAddLives(uint8_t* base, uint32_t index) {
+  const uint32_t uses = gw2::add_lives::Take();
+  const uint32_t addr = gw2::players::LivesAddress(index);
+  if (uses == 0 || addr == 0) {
+    return;
+  }
+  const uint32_t current = gw2::LoadBE32(base, addr);
+  const uint32_t add = uses * gw2::add_lives::kLivesPerUse;
+  const uint32_t sum = current + add;
+  gw2::StoreBE32(base, addr, sum < current ? UINT32_MAX : sum);
+}
+
 }  // namespace
 
 // Entity::Tick: the entity's Update, then position += velocity * dt and the arena walls. The player's velocity is
@@ -84,6 +97,7 @@ REX_HOOK_RAW(sub_8204FF00) {
   }
   if (is_player && gw2::LoadBE32(base, player + gw2::cheats::kPlayerIndexOffset) == 0) {
     GrantDebugBombs(base, 0);
+    GrantAddLives(base, 0);
     gw2::rumble::ObserveLocalPlayer(LoadFloat(base, player + gw2::players::kCenterXOffset),
                                     LoadFloat(base, player + gw2::players::kCenterYOffset),
                                     LoadFloat(base, player + gw2::players::kRadiusOffset));

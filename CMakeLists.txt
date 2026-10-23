@@ -192,6 +192,7 @@ set(GW2_SOURCES
     src/cheat_hooks.cpp
     src/cheats.cpp
     src/debug_bomb.cpp
+    src/add_lives.cpp
     src/bloom_fix.cpp
     src/crash_report.cpp
     src/rumble.cpp
