@@ -107,18 +107,13 @@ std::vector<SettingChoice> InternalRenderScaleChoices() {
           {std::to_string(kInternalRenderScaleLowEnd), "50% Low-end"}};
 }
 
-std::vector<SettingChoice> GraphicsAdapterChoices(const std::vector<GraphicsAdapter>& adapters,
-                                                  std::string_view current) {
-  std::vector<SettingChoice> choices{{kGraphicsAdapterAuto, "Automatic (Recommended)"}};
+std::vector<SettingChoice> GraphicsAdapterChoices(const std::vector<GraphicsAdapter>& adapters) {
+  std::vector<SettingChoice> choices;
   for (const GraphicsAdapter& adapter : adapters) {
     const auto same_name = std::count_if(adapters.begin(), adapters.end(),
                                          [&](const GraphicsAdapter& other) { return other.name == adapter.name; });
     const std::string index = std::to_string(adapter.index);
     choices.push_back({index, same_name > 1 ? adapter.name + " (" + index + ")" : adapter.name});
-  }
-  if (const std::optional<int> index = ParseGraphicsAdapter(current);
-      index && ResolveGraphicsAdapter(current, adapters) < 0) {
-    choices.push_back({std::string(current), "Graphics card " + std::to_string(*index) + " (not found)"});
   }
   return choices;
 }

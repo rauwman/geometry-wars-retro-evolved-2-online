@@ -65,7 +65,7 @@ Aspect Ratio is the shape the game renders in. It is not the Window size and doe
 
 | Setting | Values | Cvar |
 | --- | --- | --- |
-| Graphics card (Windows) | Automatic (Recommended), then each hardware Direct3D 12 GPU | `gw2_graphics_adapter` (`auto` or the DXGI adapter index), sets `d3d12_adapter` |
+| Graphics card (Windows) | Each hardware Direct3D 12 GPU | `gw2_graphics_adapter` (the DXGI adapter index), sets `d3d12_adapter` |
 | Render resolution | Original, 2x, 3x, 4x | `resolution_scale` (1–4) |
 | Internal render resolution | 100% Native, 75% Performance, 50% Low-end (default 100%) | `gw2_internal_render_scale` (`100`, `75`, `50`) |
 | Anti-aliasing | Off, FXAA, FXAA Extreme | `swap_post_effect` (`none`, `fxaa`, `fxaa_extreme`) |
@@ -73,7 +73,7 @@ Aspect Ratio is the shape the game renders in. It is not the Window size and doe
 | Texture filtering | Game, Off, 2x, 4x, 8x, 16x | `anisotropic_override` (`-1`, `0`, `2`–`5`) |
 | Bloom | Original, Reduced, Off (default Original) | `gw2_bloom` (`original`, `reduced`, `off`) |
 
-Graphics card lists Automatic and the hardware GPUs that can create a Direct3D 12 device, by their DXGI names; software adapters are left out, and two GPUs with the same name get their index added. Automatic is the default, also for settings files without the key: it leaves `d3d12_adapter` alone, so ReXGlue keeps preferring the high-performance GPU (0027). A chosen GPU passes its `EnumAdapters1` index as `d3d12_adapter`; a saved GPU that is no longer present falls back to Automatic and is shown as "not found". The device is created before the launcher shows, so a change restarts the game once when you press PLAY, like a window change. The log shows `Graphics card: Automatic` or `Graphics card: <name> (adapter N)`. Linux has no such row: Vulkan keeps its automatic discrete-GPU preference (0026).
+Graphics card lists the hardware GPUs that can create a Direct3D 12 device, by their DXGI names; software adapters are left out, and two GPUs with the same name get their index added. The first detected GPU is the default, also for settings files without the key and for the retired `auto`. The chosen GPU passes its `EnumAdapters1` index as `d3d12_adapter`; a saved GPU that is no longer present falls back to the first one, and the resolved index is written back to the setting. The device is created before the launcher shows, so a change restarts the game once when you press PLAY, like a window change. The log shows `Graphics card: <name> (adapter N)`. Linux has no such row: Vulkan keeps its automatic discrete-GPU preference (0026).
 
 Internal render resolution draws the game at a share of the Render resolution and scales it up to it, which lowers the GPU work at some cost in sharpness. Render resolution still picks the target; Window size and Display mode do not change, and the share keeps the shape of the selected Aspect Ratio (at 21:9 and 2x, 75% draws 2520×1080 for a 3360×1440 picture). 100% is the previous behavior, and a missing or unknown value is 100%. The host render targets are drawn at that share (at 2x, 75% is 1.5x and 50% is 1x), while the EDRAM, resolves and textures keep the smallest whole scale that holds them ([rexglue-runtime-patch.md](rexglue-runtime-patch.md#why-0036-0037-and-0038)). The GPU reads it only at start, so changing it restarts the game once when you press PLAY. The log shows the sizes and the split, for example `Internal render resolution: 75% 1260x540 -> 1680x720 (host render targets 3/4, resolves 1x)`.
 

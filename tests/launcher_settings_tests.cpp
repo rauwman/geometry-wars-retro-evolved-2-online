@@ -124,7 +124,7 @@ void RegisterGameDefaults(FakeCvars& cvars) {
   cvars.Register(kMonitorKey, "1");
   cvars.Register(kVSyncKey, "true");
   cvars.Register(kAspectKey, "16:9");
-  cvars.Register(kGraphicsAdapterKey, kGraphicsAdapterAuto);
+  cvars.Register(kGraphicsAdapterKey, "auto");
   cvars.Register(kRenderScaleKey, "1");
   cvars.Register(kInternalRenderScaleKey, "100");
   cvars.Register(kAntiAliasingKey, "none");
@@ -973,16 +973,16 @@ void TestGraphicsAdapterSetting() {
   CHECK(IsWindowSetting(kGraphicsAdapterKey));
 
   const std::vector<GraphicsAdapter> adapters = {{0, "NVIDIA GeForce RTX 4070"}, {1, "Intel UHD Graphics 730"}};
-  std::vector<SettingChoice> choices = GraphicsAdapterChoices(adapters, kGraphicsAdapterAuto);
-  CHECK(choices.size() == 3);
-  CHECK(choices[0].value == "auto" && choices[0].label == "Automatic (Recommended)");
-  CHECK(choices[1].value == "0" && choices[1].label == "NVIDIA GeForce RTX 4070");
-  CHECK(choices[2].value == "1" && choices[2].label == "Intel UHD Graphics 730");
-  choices = GraphicsAdapterChoices({{0, "Same"}, {2, "Same"}}, "0");
-  CHECK(choices.size() == 3 && choices[1].label == "Same (0)" && choices[2].label == "Same (2)");
-  choices = GraphicsAdapterChoices(adapters, "5");
-  CHECK(choices.size() == 4 && choices[3].value == "5" && choices[3].label == "Graphics card 5 (not found)");
-  CHECK(GraphicsAdapterChoices({}, "garbage").size() == 1);
+  std::vector<SettingChoice> choices = GraphicsAdapterChoices(adapters);
+  CHECK(choices.size() == 2);
+  CHECK(choices[0].value == "0" && choices[0].label == "NVIDIA GeForce RTX 4070");
+  CHECK(choices[1].value == "1" && choices[1].label == "Intel UHD Graphics 730");
+  for (const SettingChoice& choice : choices) {
+    CHECK(choice.value != "auto" && choice.label.find("Automatic") == std::string::npos);
+  }
+  choices = GraphicsAdapterChoices({{0, "Same"}, {2, "Same"}});
+  CHECK(choices.size() == 2 && choices[0].label == "Same (0)" && choices[1].label == "Same (2)");
+  CHECK(GraphicsAdapterChoices({}).empty());
 
   // The device exists before the launcher shows, so a different card restarts the game; Apply never assigns it.
   const fs::path dir = FreshDir("graphics_card");

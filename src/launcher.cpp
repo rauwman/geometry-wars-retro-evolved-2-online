@@ -605,13 +605,13 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
   }
 
   void PageGraphics(trg::Ui& ui) {
-    if (!graphics_adapters_.empty()) {
+    if (const std::optional<int> adapter =
+            ResolveGraphicsAdapter(settings_.Get(kGraphicsAdapterKey), graphics_adapters_)) {
+      const std::string value = std::to_string(*adapter);
+      settings_.Set(kGraphicsAdapterKey, value);
       ui.Combo("Graphics card",
-               "The GPU that renders the game. Automatic prefers the high-performance GPU. A change restarts the game "
-               "once when you press Play.",
-               kGraphicsAdapterKey, kGraphicsAdapterAuto,
-               ToTrgOptions(GraphicsAdapterChoices(graphics_adapters_,
-                                                   settings_.Get(kGraphicsAdapterKey, kGraphicsAdapterAuto))));
+               "The GPU that renders the game. A change restarts the game once when you press Play.",
+               kGraphicsAdapterKey, value.c_str(), ToTrgOptions(GraphicsAdapterChoices(graphics_adapters_)));
     }
     ui.Combo("Render resolution",
              "Draw resolution scale for both axes. Higher is sharper and costs more GPU time. Window size is separate.",

@@ -107,7 +107,7 @@ The launcher opens before the game. Your choices are saved to `settings.toml` in
 Window size, monitor, VSync, Aspect Ratio and graphics card take effect when you press **PLAY**. If one differs from the launcher's window, the game restarts once in a new window.
 
 ### Graphics
-- **Graphics card** (Windows): Automatic (recommended) or a specific GPU
+- **Graphics card** (Windows): the GPU that renders the game; the first detected one is the default
 - **Render resolution**: Original (1280×720), 2x (2560×1440, recommended for 1440p), 3x (3840×2160) or 4x (5120×2880) at 16:9; the other Aspect Ratios change the width
 - **Internal render resolution**: 100% Native, 75% Performance or 50% Low-end. The GPU draws the game at that share of the Render resolution and scales it up, which lowers the GPU work at some cost in sharpness
 - **Anti-aliasing**: Off, FXAA or FXAA Extreme
