@@ -3,6 +3,9 @@
 license_mask = 1
 gpu_plugin = "xenos"
 
+# Empty skips the optional gamecontrollerdb.txt load; SDL's built-in mappings still apply.
+hid_mappings_file = ""
+
 # Launcher and game window, centered on the primary display. Size is in logical pixels
 # (scaled by Windows DPI) and is reduced to fit the display. The game sets the guest video mode from the launcher's
 # Aspect Ratio, so it does not follow the window size.

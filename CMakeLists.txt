@@ -344,13 +344,23 @@ target_compile_definitions(geometry_wars_retro_evolved_2 PRIVATE
     GW2_BUILD_CONFIG="$<CONFIG>"
     GW2_TRG_LAUNCHER_VERSION="${GW2_TRG_VERSION}")
 
-# The runtime reads its cvars from <exe dir>/geometry_wars_retro_evolved_2.toml.
-add_custom_command(TARGET geometry_wars_retro_evolved_2 POST_BUILD
+# The runtime reads its cvars from <exe dir>/geometry_wars_retro_evolved_2.toml. A POST_BUILD step only
+# runs when the target itself relinks, so it would miss a config-only edit; track it as its own build
+# output instead, with the source file as a DEPENDS, so Ninja re-copies it whenever it changes.
+# OUTPUT must be a concrete path: target-dependent generator expressions like TARGET_FILE_DIR cannot be
+# evaluated there. This target's executable lands directly in CMAKE_CURRENT_BINARY_DIR (single-config
+# Ninja, no RUNTIME_OUTPUT_DIRECTORY override), so that is the staged file's real directory.
+set(GW2_STAGED_TOML "${CMAKE_CURRENT_BINARY_DIR}/geometry_wars_retro_evolved_2.toml")
+add_custom_command(
+    OUTPUT "${GW2_STAGED_TOML}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/config/geometry_wars_retro_evolved_2.toml"
-        "$<TARGET_FILE_DIR:geometry_wars_retro_evolved_2>"
+        "${GW2_STAGED_TOML}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/config/geometry_wars_retro_evolved_2.toml"
     VERBATIM
 )
+add_custom_target(geometry_wars_retro_evolved_2_toml ALL DEPENDS "${GW2_STAGED_TOML}")
+add_dependencies(geometry_wars_retro_evolved_2 geometry_wars_retro_evolved_2_toml)
 
 add_custom_command(TARGET geometry_wars_retro_evolved_2 POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory
