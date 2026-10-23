@@ -11,6 +11,7 @@
 #include "bloom_rules.h"
 #include "frame_limiter.h"
 #include "internal_render_scale.h"
+#include "launcher_settings.h"
 
 namespace gw2 {
 namespace {
@@ -130,6 +131,30 @@ std::vector<SettingChoice> BloomChoices() {
   return {{std::string(bloom::ModeName(bloom::Mode::kOriginal)), "Original"},
           {std::string(bloom::ModeName(bloom::Mode::kReduced)), "Reduced"},
           {std::string(bloom::ModeName(bloom::Mode::kOff)), "Off"}};
+}
+
+std::vector<SettingChoice> SmoothGlowChoices() {
+  return {{"false", "Off (Original)"}, {"true", "On"}};
+}
+
+std::vector<SettingChoice> HdrChoices() {
+  return {{"false", "Off"}, {"true", "On"}};
+}
+
+std::vector<SettingChoice> HdrPaperWhiteChoices() {
+  std::vector<SettingChoice> choices{{kHdrPaperWhiteAuto, "Windows SDR brightness (Recommended)"}};
+  for (const int nits : {100, 150, 200, 250, 300, 400}) {
+    choices.push_back({std::to_string(nits), std::to_string(nits) + " nits"});
+  }
+  return choices;
+}
+
+std::vector<SettingChoice> HdrPeakChoices() {
+  std::vector<SettingChoice> choices{{kHdrPeakAuto, "Display's peak (Recommended)"}};
+  for (const int nits : {400, 600, 800, 1000, 1500, 2000, 4000}) {
+    choices.push_back({std::to_string(nits), std::to_string(nits) + " nits"});
+  }
+  return choices;
 }
 
 std::vector<SettingChoice> FrameRateChoices() {

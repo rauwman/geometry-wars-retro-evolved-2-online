@@ -46,6 +46,11 @@ std::vector<SettingChoice> GraphicsAdapterChoices(const std::vector<GraphicsAdap
 std::vector<SettingChoice> AntiAliasingChoices();
 std::vector<SettingChoice> TextureFilteringChoices();
 std::vector<SettingChoice> BloomChoices();
+// Windows D3D12 only.
+std::vector<SettingChoice> SmoothGlowChoices();
+std::vector<SettingChoice> HdrChoices();
+std::vector<SettingChoice> HdrPaperWhiteChoices();
+std::vector<SettingChoice> HdrPeakChoices();
 std::vector<SettingChoice> FrameRateChoices();
 
 std::string KeyList(std::string keys);

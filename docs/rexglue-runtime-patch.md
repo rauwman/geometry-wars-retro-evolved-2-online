@@ -69,6 +69,8 @@ class the game's code or `share/rexglue/rex_app.cpp` uses (`Window`, the public 
 | [0053-gpu-plugin-pgo](../patches/rexglue-sdk/0053-gpu-plugin-pgo.windows.patch) | Windows | GPU plugin | 0053 | `REXGPU_PGO_USE` names a merged profile to optimize `rexgpu-xenos` with in Release |
 | [0054-local-user-display-names](../patches/rexglue-sdk/0054-local-user-display-names.patch) | both | runtime | - | configurable local player display names |
 | [0055-gpu-side-effect-free-register-ranges](../patches/rexglue-sdk/0055-gpu-side-effect-free-register-ranges.patch) | both | GPU plugin | 0048 | widens the register-write bulk path of 0004 to every register without a write side effect, not only `0x2000`-`0x3FFF` |
+| [0056-d3d12-gpu-frame-trace](../patches/rexglue-sdk/0056-d3d12-gpu-frame-trace.windows.patch) | Windows | GPU plugin | - | the `gpu_frame_trace_interval` cvar (off by default, no log output when off): every draw, resolve and swap of one frame in N is logged with its render target, blend and texture formats (D3D12) |
+| [0057-d3d12-hdr-float-resolve-copies](../patches/rexglue-sdk/0057-d3d12-hdr-float-resolve-copies.windows.patch) | Windows | both | - | float resolve copies (`float_resolve_copies`, Smooth glow) in the D3D12 render target and texture caches; HDR output (`hdr_output` and the `hdr_*` cvars) in the presenter, the immediate drawer, the swap of the command processor and the pipeline cache ([Why 0057](#why-0057)) |
 | Pins | | | | [patches/rexglue-sdk/baseline.env](../patches/rexglue-sdk/baseline.env): tag, commit and the stock runtime and plugin hashes |
 
 There is no 0034: Hard Corps' 0034 is this project's 0002. 0036 to 0038 are Hard Corps' patches with the cvar renamed
@@ -79,6 +81,9 @@ from `hcu_internal_render_scale` to `gw2_internal_render_scale`; nothing else di
 
 0055 is Hard Corps' 0048, itself adapted from Crackdown Recompiled's `patches/sdk/0023-gpu-fast-register-ranges.patch`;
 see [Why 0055](#why-0055-wider-register-write-bulk-path).
+
+0056 and 0057 are ported from this project's own `pr-7-native-hdr` reference branch (old patches 0039 and 0040 there),
+rebased onto the current chain; see [Why 0057](#why-0057).
 
 ## What each platform gets
 
@@ -468,6 +473,56 @@ the same four `src/graphics/command_processor.cpp` already singles out in `Write
 run that touches any other register - which a scene with many draws does every time a particle or an explosion changes
 fixed-function state between draws - takes the block-copy path too, instead of one virtual call per register. Both
 backends take the wider path through the base class, the same as 0004.
+
+## Why 0057
+
+The game draws in floating-point render targets (`k_2_10_10_10_FLOAT`, 7e3, hosted as `R16G16B16A16_FLOAT`), but every
+resolve into a texture goes through the 32-bit EDRAM layout and the guest texture format: the scene into
+`k_2_10_10_10` (10-bit unorm), each bloom level into `k_16_16_16_16`. The bloom levels are drawn in 7e3, whose
+smallest step above zero, 1/512 in linear light, is about 15/255 after the final gamma conversion. Faint bloom tails
+end in that step, which is the flat, hard-edged glow around the stars. 0056's `gpu_frame_trace_interval` found the
+passes.
+
+- **Float resolve copies** (`float_resolve_copies`, on in the shipped config as Smooth glow). A resolve from a
+  render target whose host format is `R16G16B16A16_FLOAT` and that alone owns the resolved area from its origin,
+  single-sampled, is also copied by a compute shader into an `R16G16B16A16_FLOAT` texture: the render target times
+  the copy's exponent bias, red and blue swapped like the copy, without clamping. A texture bound with the same base
+  address, a format of the 2_10_10_10 or 16_16_16_16 families, no mips and a size within the copy is sampled from the
+  float copy instead (a smaller texture gets a copy of the top-left part, so normalized coordinates still match).
+  The guest memory is written as before, so the deferred writeback of 0030/0031 and the direct texture copies of
+  0022/0023 are unaffected; the float copy is an additional output alongside them, not a replacement, and is dropped
+  (not promoted) from a render target 0022/0023 would already copy as a plain integer texture. A resolve overlapping
+  a float copy drops it.
+- **HDR output** (`hdr_output`, read once at startup). The swap chain is FP16 in the scRGB color space, the guest
+  output and the paint pipelines are FP16, the paint effect is bilinear without dithering, and the UI is linearized
+  to the paper white. `k_2_10_10_10` render targets are `R16G16B16A16_FLOAT` on the host, with clamps where the
+  transfer and dump shaders pack them into 10 bits. In the final composite pixel shader (`FCF4C1A80AEC4B2C`), the
+  clamps of the scene-plus-bloom sums (scalar results of ALU slots 14, 16 and 19, vector result of 20) are removed;
+  the clamps that feed its scene darkening factor stay. The patched microcode has its own hash. The swap converts
+  the float copy of the front buffer (or the front buffer texture when there is none) to scRGB: the part above 1.0
+  is multiplied by `hdr_highlight_strength`, gamma 2.2 relative to `hdr_paper_white_nits` (0 = the SDR white level
+  Windows reports for the display), rolled off towards `hdr_peak_nits` (0 = the display's `MaxLuminance`) per
+  channel, or by the brightest channel as `hdr_highlight_saturation` goes to 1. The float copy is read with the
+  front buffer's component mapping. Without Windows HDR on the display, paper white and peak are SDR white.
+
+Shader hash verification: the final composite shader hash (`FCF4C1A80AEC4B2C`, 93 dwords) was cross-checked against
+the independent, unrelated static analysis in the bloom-control work, which reads the same shader from the shader
+cache (`584108FF.xsh`, cache index 17) and describes the same `bg = t0*c0.x + t1*c0.y`, `fg = t2*c1.x + t3*c1.y`
+tone-mapping shape at 93 dwords. The hash is a pure function of the game's own (unchanged) compiled microcode, so it
+is still correct in the current tree.
+
+0056 and 0057 adapt the old `pr-7-native-hdr` branch's 0039 and 0040 onto the current chain. That branch's snapshot
+already had the resolve-copy-into-textures and deferred-writeback work (0022 to 0032) and the internal render scale
+split (0036 to 0038), so most of the render target and texture cache hunks carry over with only line-offset changes:
+`PlanResolveTextureCopy`, the restructured `Resolve` (0031's `DeferredResolve`/`DispatchResolveCopy`) and
+`WriteFloatResolveCopy`'s host size (`GuestToHostX`/`GuestToHostY`, 0036/0037) all matched the current shape
+directly. What needed adapting is code added after that snapshot: `D3D12TextureCache::TextureSRVKey` gained
+`descriptor_index` and `descriptor_index_signed` members here (0057), and `FindOrCreateTextureDescriptor` is split
+into a new `AllocateSRVDescriptor` so the float copy's descriptor can share the allocator without going through a
+texture's own view creation. 0040 (current, transfer short-circuit) and 0041 to 0044 touch different functions in
+the same files and are left alone; the float copy path runs after 0004/0055's register bulk-copy path and 0043's
+draw-state memo have already decided whether a draw's render targets changed, so it adds no extra per-draw cost on
+the common path where nothing resolves.
 
 ## Game code that goes with the patches
 

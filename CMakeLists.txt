@@ -189,6 +189,7 @@ set(GW2_SOURCES
     src/achievements_overlay.cpp
     src/aspect_render.cpp
     src/cheat_menu.cpp
+    src/options_menu.cpp
     src/cheat_hooks.cpp
     src/cheats.cpp
     src/debug_bomb.cpp
@@ -395,6 +396,7 @@ endif()
 
 gw2_add_test(live_tests src/local_stats.cpp src/live_stats.cpp)
 gw2_add_test(achievements_overlay_rules_tests)
+gw2_add_test(options_menu_tests)
 gw2_add_test(launcher_tests src/game_files.cpp src/stfs.cpp src/launcher_achievements.cpp)
 gw2_add_test(window_host_tests)
 target_compile_definitions(window_host_tests PRIVATE GW2_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}/src")

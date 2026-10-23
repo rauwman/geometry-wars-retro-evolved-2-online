@@ -2,7 +2,8 @@
 .SYNOPSIS
   Builds and runs tests\live_tests.cpp (the local stats store and the guest-buffer helpers behind the offline Live
   services), tests\achievements_overlay_rules_tests.cpp (the achievements overlay's controller and window-size
-  rules), tests\launcher_tests.cpp (game-file validation, package reading and safe install, launcher settings,
+  rules), tests\options_menu_tests.cpp (the in-game Options menu's L3 + R3 combo detector and choice stepping),
+  tests\launcher_tests.cpp (game-file validation, package reading and safe install, launcher settings,
   the window fit and the achievement summary), tests\launcher_settings_tests.cpp (the settings model, the PLAY gate,
   the Display, Graphics and Gameplay options), tests\graphics_adapter_tests.cpp (the Graphics card values and
   the adapter order), tests\aspect_ratio_tests.cpp (the Aspect Ratio table, canvas, window sizes and the retired
@@ -22,6 +23,7 @@ $Root = Split-Path $PSScriptRoot -Parent
 $OutDir = Join-Path $Root 'build\tests'
 $Exe = Join-Path $OutDir 'live_tests.exe'
 $RulesExe = Join-Path $OutDir 'achievements_overlay_rules_tests.exe'
+$OptionsMenuExe = Join-Path $OutDir 'options_menu_tests.exe'
 $LauncherExe = Join-Path $OutDir 'launcher_tests.exe'
 $SettingsExe = Join-Path $OutDir 'launcher_settings_tests.exe'
 $WindowHostExe = Join-Path $OutDir 'window_host_tests.exe'
@@ -66,6 +68,9 @@ try {
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
         (Join-Path $Root 'tests\achievements_overlay_rules_tests.cpp') -o $RulesExe
+    if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
+    & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
+        (Join-Path $Root 'tests\options_menu_tests.cpp') -o $OptionsMenuExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') -I (Join-Path $Root 'tools\rexglue\win-amd64\include') -I (Join-Path $TrgDir 'include') `
         (Join-Path $Root 'tests\launcher_tests.cpp') (Join-Path $Root 'src\game_files.cpp') `
@@ -131,6 +136,8 @@ try {
 if ($LASTEXITCODE) { throw "Tests failed ($LASTEXITCODE)" }
 & $RulesExe
 if ($LASTEXITCODE) { throw "Achievements overlay rule tests failed ($LASTEXITCODE)" }
+& $OptionsMenuExe
+if ($LASTEXITCODE) { throw "Options menu rule tests failed ($LASTEXITCODE)" }
 & $LauncherExe
 if ($LASTEXITCODE) { throw "Launcher tests failed ($LASTEXITCODE)" }
 & $WindowHostExe

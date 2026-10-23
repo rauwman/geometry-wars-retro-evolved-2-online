@@ -54,3 +54,5 @@
 0053-gpu-plugin-pgo.windows.patch                        windows         rexgpu-xenos
 0054-local-user-display-names.patch                       windows,linux    rexruntime
 0055-gpu-side-effect-free-register-ranges.patch         windows,linux   rexgpu-xenos
+0056-d3d12-gpu-frame-trace.windows.patch                 windows         rexgpu-xenos
+0057-d3d12-hdr-float-resolve-copies.windows.patch        windows         rexruntime,rexgpu-xenos
