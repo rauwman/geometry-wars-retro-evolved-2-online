@@ -67,6 +67,8 @@ class the game's code or `share/rexglue/rex_app.cpp` uses (`Window`, the public 
 | [0051-texture-cache-resolve-target-index](../patches/rexglue-sdk/0051-texture-cache-resolve-target-index.windows.patch) | Windows | GPU plugin | 0051 | the texture cache indexes its textures by base page, so `FindResolveCopyTargets` looks at the textures on the resolve's page |
 | [0052-d3d12-per-draw-loops](../patches/rexglue-sdk/0052-d3d12-per-draw-loops.windows.patch) | Windows | GPU plugin | 0052 | vertex buffer residency invalidated by 64-bit masks, used float constants copied in runs, stencil tile bits read and added in up to two contiguous runs |
 | [0053-gpu-plugin-pgo](../patches/rexglue-sdk/0053-gpu-plugin-pgo.windows.patch) | Windows | GPU plugin | 0053 | `REXGPU_PGO_USE` names a merged profile to optimize `rexgpu-xenos` with in Release |
+| [0054-local-user-display-names](../patches/rexglue-sdk/0054-local-user-display-names.patch) | both | runtime | - | configurable local player display names |
+| [0055-gpu-side-effect-free-register-ranges](../patches/rexglue-sdk/0055-gpu-side-effect-free-register-ranges.patch) | both | GPU plugin | 0048 | widens the register-write bulk path of 0004 to every register without a write side effect, not only `0x2000`-`0x3FFF` |
 | Pins | | | | [patches/rexglue-sdk/baseline.env](../patches/rexglue-sdk/baseline.env): tag, commit and the stock runtime and plugin hashes |
 
 There is no 0034: Hard Corps' 0034 is this project's 0002. 0036 to 0038 are Hard Corps' patches with the cvar renamed
@@ -74,6 +76,9 @@ from `hcu_internal_render_scale` to `gw2_internal_render_scale`; nothing else di
 
 0048 to 0053 are ported from Crackdown Recompiled's PR #13 (patches 0097 to 0102 there, head
 `7a90c373b8912a025b2d084cdc696bbd649fdfea`); see [Why 0048 to 0053](#why-0048-to-0053-gpu-command-processor-cost).
+
+0055 is Hard Corps' 0048, itself adapted from Crackdown Recompiled's `patches/sdk/0023-gpu-fast-register-ranges.patch`;
+see [Why 0055](#why-0055-wider-register-write-bulk-path).
 
 ## What each platform gets
 
@@ -100,6 +105,7 @@ from `hcu_internal_render_scale` to `gw2_internal_render_scale`; nothing else di
 | Swapchain paint pipeline kept while the format is unchanged | not applicable: the D3D12 presenter has no such cache | 0035 |
 | Host render targets smaller than the draw resolution (0036) | 0037 | 0038 |
 | GPU command processor cost (0048 to 0053) | 0048 to 0053 | not applied |
+| Wider register-write bulk path (0055) | common | common |
 
 ## Why 0001: physical release order
 
@@ -449,6 +455,19 @@ Crackdown's profile must not be used. The fingerprint in `rexruntime-patch.txt` 
 To make a profile, record it manually during gameplay: build the plugin with clang `-fprofile-generate`, play the
 heavy scenes, and merge the raw profiles with Visual Studio's `llvm-profdata merge`. Functions changed since the
 profile was made are optimized without it, so a stale profile only means less optimization.
+
+## Why 0055: wider register-write bulk path
+
+0004's block-copy path only covered render-state registers (`0x2000`-`0x3FFF`) and the three constant-register runs.
+Every other register below `0x2000` without a write side effect - fetch constants below the context register range,
+blend/alpha/stencil state, viewport and scissor registers, and the rest of the fixed-function state - still went
+through `WriteRegister` one register at a time, each call walking the known-register bitset and the side-effect
+switch. `IsSideEffectFreeRegisterRange` replaces the `0x2000` floor with an explicit exclusion of the four register
+spans that do have side effects (shader constants, the scratch registers, `COHER_STATUS_HOST`, the gamma ramp ports -
+the same four `src/graphics/command_processor.cpp` already singles out in `WriteRegister`), so a `WriteRegistersFromMem`
+run that touches any other register - which a scene with many draws does every time a particle or an explosion changes
+fixed-function state between draws - takes the block-copy path too, instead of one virtual call per register. Both
+backends take the wider path through the base class, the same as 0004.
 
 ## Game code that goes with the patches
 
