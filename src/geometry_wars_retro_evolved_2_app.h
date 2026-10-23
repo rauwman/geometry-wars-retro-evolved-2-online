@@ -168,6 +168,7 @@ class GeometryWarsRetroEvolved2App : public rex::ReXApp {
     if (gw2::ApplyInternalRenderPath(cvars_)) {
       REXLOG_INFO("Internal render resolution: using D3D12 host render targets");
     }
+    gw2::ApplyPlayerNames(cvars_);
     const bool game_ready = gw2::CheckGameFiles(defaults.game_data_root).state == gw2::GameFileState::kValid;
     const bool show = gw2::LauncherWanted(game_ready, gw2::ShowLauncherSetting(*settings_), gw2::ShiftHeld(),
                                           gw2::TakeSkipLauncher());

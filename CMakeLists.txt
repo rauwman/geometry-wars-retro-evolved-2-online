@@ -184,6 +184,7 @@ set(GW2_SOURCES
     src/input_summary.cpp
     src/system_info.cpp
     src/profile_fix.cpp
+    src/player_name_display_hook.cpp
     src/live_fix.cpp
     src/achievements_overlay.cpp
     src/aspect_render.cpp
@@ -420,6 +421,8 @@ add_library(gw2_trg_test_support STATIC EXCLUDE_FROM_ALL
 target_include_directories(gw2_trg_test_support PUBLIC "${_trg_patched_dir}/include")
 set_target_properties(gw2_trg_test_support PROPERTIES CXX_STANDARD 17)
 target_compile_definitions(gw2_trg_test_support PRIVATE _CRT_SECURE_NO_WARNINGS)
+gw2_add_test(player_names_tests)
+target_compile_definitions(player_names_tests PRIVATE GW2_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}/src")
 gw2_add_test(launcher_settings_tests src/launcher_settings.cpp src/launcher_options.cpp)
 gw2_add_test(graphics_adapter_tests src/graphics_adapters.cpp)
 gw2_add_test(diagnostics_tests src/diagnostics.cpp)

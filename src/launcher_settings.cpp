@@ -18,6 +18,7 @@
 #include "keybinds.h"
 #include "launcher_platform.h"
 #include "multisampling.h"
+#include "player_names.h"
 #include "trg/settings.h"
 
 namespace gw2 {
@@ -59,6 +60,9 @@ std::vector<ManagedSetting> BuildManagedSettings() {
   };
   for (const KeyboardAction& action : kKeyboardActions) {
     settings.push_back({action.key, ValueKind::kString});
+  }
+  for (const PlayerNameSetting& player : kPlayerNames) {
+    settings.push_back({player.key, ValueKind::kString});
   }
   return settings;
 }
@@ -227,7 +231,22 @@ void GameSettings::Set(std::string_view key, std::string value) {
   pending_[std::string(key)] = std::move(value);
 }
 
+void ApplyPlayerNames(CvarAccess& cvars) {
+  for (const PlayerNameSetting& player : kPlayerNames) {
+    if (!cvars.IsRegistered(player.sdk_key)) {
+      continue;
+    }
+    cvars.Assign(player.sdk_key, SdkPlayerName(player, cvars.Value(player.key)));
+  }
+}
+
 bool GameSettings::Save() {
+  for (const PlayerNameSetting& player : kPlayerNames) {
+    const auto name = pending_.find(player.key);
+    if (name != pending_.end() && !IsValidPlayerName(name->second)) {
+      name->second = player.default_name;
+    }
+  }
   Values changes;
   for (const auto& [key, value] : pending_) {
     const auto saved = saved_.find(key);
@@ -276,6 +295,7 @@ bool GameSettings::Apply() {
   }
   ApplyMultisampling(cvars_);
   ApplyInternalRenderPath(cvars_);
+  ApplyPlayerNames(cvars_);
   return restart || cvars_.RestartPending();
 }
 

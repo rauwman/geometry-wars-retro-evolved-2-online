@@ -95,6 +95,10 @@ void ApplyMultisampling(CvarAccess& cvars);
 // configured. Only the D3D12 build registers the path. Returns whether it changed the path.
 bool ApplyInternalRenderPath(CvarAccess& cvars);
 
+// Writes each player's saved launcher name to the SDK's local_player_<n>_name cvar. Presentation only: it never
+// touches the profile identity, save path or sign-in state.
+void ApplyPlayerNames(CvarAccess& cvars);
+
 // Pending launcher edits over the saved player values, over the shipped defaults. Nothing reaches the running
 // game until Apply(), and nothing is written until Save().
 class GameSettings final : public trg::SettingsStore {

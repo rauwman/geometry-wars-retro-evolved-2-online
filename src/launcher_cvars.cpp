@@ -45,6 +45,14 @@ REXCVAR_DEFINE_STRING(gw2_graphics_adapter, "auto", "Geometry Wars",
                       "Graphics card: the index d3d12_adapter takes; anything else uses the first adapter (applied at start)");
 REXCVAR_DEFINE_STRING(gw2_aspect_ratio, "16:9", "Geometry Wars",
                       "Aspect ratio the game renders in: 16:9, 16:10, 21:9, 32:9, 4:3 or 5:4 (applied at start)");
+REXCVAR_DEFINE_STRING(gw2_player_1_name, "Player 1", "Geometry Wars",
+                      "Name shown for local player 1; save data is not affected");
+REXCVAR_DEFINE_STRING(gw2_player_2_name, "Player 2", "Geometry Wars",
+                      "Name shown for local player 2; save data is not affected");
+REXCVAR_DEFINE_STRING(gw2_player_3_name, "Player 3", "Geometry Wars",
+                      "Name shown for local player 3; save data is not affected");
+REXCVAR_DEFINE_STRING(gw2_player_4_name, "Player 4", "Geometry Wars",
+                      "Name shown for local player 4; save data is not affected");
 REXCVAR_DEFINE_INT32(gw2_launcher_x, 0, "Launcher", "Launcher window position, left edge (set by the launcher)");
 REXCVAR_DEFINE_INT32(gw2_launcher_y, 0, "Launcher", "Launcher window position, top edge (set by the launcher)");
 REXCVAR_DEFINE_INT32(gw2_launcher_width, 0, "Launcher", "Launcher window width; 0 uses the default (set by the launcher)");
