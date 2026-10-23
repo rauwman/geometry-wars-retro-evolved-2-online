@@ -13,3 +13,7 @@ fullscreen = false
 monitor = 1
 window_width = 1280
 window_height = 720
+
+# Audio frames queued ahead of playback (ReXGlue's default is 8). 16 keeps the sound in step through busy modes like
+# Evolved and Sequence, at about 43 ms more delay.
+audio_maxqframes = 16
