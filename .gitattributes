@@ -9,3 +9,6 @@ packaging/linux/*.desktop text eol=lf
 # The runtime patches are applied with git apply on both platforms.
 patches/rexglue-sdk/* text eol=lf
 patches/appimage-runtime/* text eol=lf
+
+# The TRG launcher patches are applied with git apply: CRLF makes git apply report a corrupt patch.
+patches/trg-launcher/* text eol=lf
