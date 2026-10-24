@@ -22,7 +22,7 @@ Scores cannot be verified, so cheating cannot be ruled out. The operator can hid
 ### Downloads
 
 - **GeometryWarsRetroEvolved2-v1.1.0-windows-x64.zip**: Windows 10 or 11 (64-bit), DirectX 12 graphics card, latest Microsoft Visual C++ 2015-2022 Redistributable (x64). Extract anywhere you can write to and run `geometry_wars_retro_evolved_2.exe`. To update from an older version, extract over the old folder; your `game` and `user_data` folders are kept. The launcher also offers the update itself (**UPDATE NOW**). The build is not digitally signed, so SmartScreen may warn: choose More info, then Run anyway.
-- **GeometryWarsRetroEvolved2Recompiled-v1.1.0-x86_64.tar.gz** and **GeometryWarsRetroEvolved2Recompiled-v1.1.0-x86_64.AppImage**: the native Linux x86_64 build using Vulkan (see [docs/linux.md](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/blob/main/docs/linux.md)). It needs the system `libcurl.so.4` for the leaderboard.
+- **Linux / Steam Deck:** the native Linux build of v1.1.0 (AppImage and `.tar.gz`) follows and will be attached to this release. Until then, Linux players stay on v1.0.0; the global leaderboard server also works with it (see "If you used the friends leaderboard of v1.0.0").
 
 Each download has a matching `.sha256` file. Compare the SHA-256 of the file you downloaded with it.
 
