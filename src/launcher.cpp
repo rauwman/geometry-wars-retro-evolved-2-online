@@ -682,6 +682,23 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
   }
 
   static void PlayerNameRow(trg::Ui& ui, const PlayerNameSetting& player) {
+    // With an online account the game shows the online name for player 1 (see ShowOnlineNameInGame), so the field
+    // has no effect: show the name, greyed out.
+    if (&player == &kPlayerNames[0]) {
+      const std::string online_name = ui.settings().Get(kOnlineNameKey);
+      if (!online_name.empty() && !ui.settings().Get(kOnlineTokenKey).empty()) {
+        ui.Row(player.label, "Signed in: your online name is used.");
+        char shown_name[64];
+        std::snprintf(shown_name, sizeof shown_name, "%s", online_name.c_str());
+        ImGui::PushID(player.key);
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        ImGui::BeginDisabled();
+        ImGui::InputText("##online", shown_name, sizeof shown_name, ImGuiInputTextFlags_ReadOnly);
+        ImGui::EndDisabled();
+        ImGui::PopID();
+        return;
+      }
+    }
     static std::map<std::string, PlayerNameResult> blocked;
     struct Edit {
       std::string previous;
