@@ -7,7 +7,7 @@ set(GW2_VERSION_SUFFIX "")
 # and the one the launcher's self-update compares. The project VERSION above stays the upstream version this fork is based on.
 # The 1.x range is deliberate: upstream tags are v0.x, so the fork's tags never collide with fetched upstream tags.
 # Read by tools\package-release.ps1 and tools/package-linux.sh.
-set(GW2_MOD_VERSION "1.0.0")
+set(GW2_MOD_VERSION "1.1.0")
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
