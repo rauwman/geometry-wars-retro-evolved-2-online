@@ -23,6 +23,7 @@ Each download has a matching `.sha256` file. Compare the SHA-256 of the file you
 ### Known limitations
 
 - Linux and Steam Deck remain experimental and are tested on one Steam Deck.
+- The game simulates at 60 steps per second. With the frame rate limit at 60 or 120 FPS it runs smoothly; at 90 or 144 FPS busy scenes such as explosions can stutter (also on a Steam Deck). Use a multiple of 60.
 - Scores cannot be verified, so cheating cannot be ruled out. The operator can hide a player or delete a score.
 - Everything in [upstream's known limitations](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/releases/tag/v0.6.0) applies as well.
 
