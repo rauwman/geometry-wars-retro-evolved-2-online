@@ -12,7 +12,7 @@
 
 </div>
 
-<img width="1905" height="1071" alt="2026-10-11_18-47" src="https://github.com/user-attachments/assets/08b1ed2c-3244-41c1-94f1-e2ae4c1b76d1" />
+<img width="1080" height="639" alt="image" src="https://github.com/user-attachments/assets/4186f8c0-a249-44a6-8f37-7f67c4034705" />
 
 ## What's new in v0.6.0
 
