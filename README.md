@@ -31,11 +31,13 @@ The full list is in the [v0.5.0 release notes](https://github.com/saulob/geometr
 - TRG launcher that installs the game from your own package and remembers its window position, size, maximized and fullscreen state
 - High frame rate support: 30, 60 (the original), 90, 120, 144, 165, 240 or Unlimited, with gameplay updates capped at 60 Hz so enemy behavior and animations keep the original timing
 - Render resolution up to 4x (5120×2880), internal render resolution (100%, 75% or 50%), graphics card choice on Windows, FXAA, 2x or 4x (Compatibility) multisampling, texture filtering up to 16x, VSync and native aspect ratios (16:9, 16:10, 21:9, 32:9, 4:3, 5:4)
+- HDR output and Smooth glow on Windows: the game's neon light goes above white on an HDR display, and the glow fades out smoothly instead of in flat steps
 - Improved frame pacing and performance, with less unnecessary GPU and CPU work, especially at higher render resolutions
 - Automatic discrete-GPU preference on hybrid systems, and a more reliable Exit Game
 - Frame rate in the window title, and an in-game frame rate counter (**F2**)
 - Local profile and progression, local scores, offline leaderboards, and all 12 achievements (**F7** overlay), with no Xbox Live connection
-- Cheats (Invincible, Infinite Shield, Infinite Bombs, Movement Speed), set in the launcher or toggled in game with **F10**
+- An in-game Options menu (**F1**, or **L3 + R3** on a controller) with the launcher's own settings, alongside the launcher itself
+- Cheats (Invincible, Infinite Shield, Infinite Bombs, Movement Speed, Add 100 Lives) and Unlock all game modes, set in the launcher or the in-game Options menu, or toggled in game with **F10**
 - Portable `user_data` folder next to the program, with automatic migration of v0.1.0 data
 - **F11** in the launcher and **F11** in the game are independent: the launcher's fullscreen never changes the game's Display mode
 - The mouse cursor shows on mouse activity and hides on keyboard or controller activity during gameplay

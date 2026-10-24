@@ -179,6 +179,66 @@ void TestRoundTrip() {
   CHECK(!step.overriding);
 }
 
+void TestProfileReloadWhileOnRefreshesTheRealMask() {
+  Section("reloading the profile while on refreshes the preserved real mask, not the stale one");
+  uint32_t real = 0;
+  bool overriding = false;
+  const uint32_t mask_a = 2;
+
+  // Loads mask A with the cheat off, then turns it on: A is captured, the effective mask becomes 0x3F.
+  SyncResult step = Sync(mask_a, /*enabled=*/false, real, overriding);
+  real = step.next_real_mask;
+  overriding = step.overriding;
+  step = Sync(step.next_mask, /*enabled=*/true, real, overriding);
+  real = step.next_real_mask;
+  overriding = step.overriding;
+  CHECK(step.next_mask == kAllModesMask);
+  CHECK(real == mask_a);
+
+  // The profile-load path reloads a different real mask B while the cheat stays on. OnProfileLoaded always
+  // resyncs with was_overriding forced to false, so B is captured as real instead of the stale A.
+  const uint32_t mask_b = 5;
+  step = Sync(mask_b, /*enabled=*/true, real, /*was_overriding=*/false);
+  real = step.next_real_mask;
+  overriding = step.overriding;
+  CHECK(real == mask_b);                    // the preserved mask is now B
+  CHECK(step.next_mask == kAllModesMask);   // the effective mask after the reload is still 0x3F
+  CHECK(overriding);
+
+  // A save right after the reload, while still on, must serialize B, never the artificial mask.
+  CHECK(MaskForWrite(overriding, real, step.next_mask) == mask_b);
+
+  // Turning the cheat off now restores B, not the stale A.
+  step = Sync(step.next_mask, /*enabled=*/false, real, overriding);
+  CHECK(step.next_mask == mask_b);
+  CHECK(!step.overriding);
+}
+
+void TestRepeatedReloadsWhileOnAlwaysTrackTheLatestGenuineMask() {
+  Section("repeated reloads while on always track the latest genuine mask");
+  uint32_t real = 10;
+  for (const uint32_t loaded : {3u, 9u, 0u, 0x15u}) {
+    const SyncResult step = Sync(loaded, /*enabled=*/true, real, /*was_overriding=*/false);
+    CHECK(step.next_real_mask == loaded);
+    CHECK(step.next_mask == kAllModesMask);
+    CHECK(step.overriding);
+    real = step.next_real_mask;
+  }
+}
+
+void TestGenuineAllModesMaskSurvivesAReloadWhileOn() {
+  Section("a genuinely-0x3F reloaded mask while on is tracked as real, not mistaken for the artificial one");
+  // The cheat is already on, having frozen some other real mask.
+  const SyncResult reloaded = Sync(kAllModesMask, /*enabled=*/true, /*real_mask=*/2, /*was_overriding=*/false);
+  CHECK(reloaded.next_real_mask == kAllModesMask);
+  CHECK(reloaded.next_mask == kAllModesMask);
+
+  // Turning the cheat off must restore the genuinely-0x3F mask just loaded, not the earlier frozen one.
+  const SyncResult off = Sync(reloaded.next_mask, /*enabled=*/false, reloaded.next_real_mask, reloaded.overriding);
+  CHECK(off.next_mask == kAllModesMask);
+  CHECK(!off.overriding);
+}
+
 void TestWiredIntoLauncherAndOptionsMenu() {
   Section("the same setting is used by the launcher and the in-game Options menu");
   const std::string launcher = ReadSource("launcher.cpp");
@@ -213,7 +273,12 @@ void TestHooksAreWired() {
     CHECK(Count(hooks, std::string("__imp__") + name + "(ctx, base)") == 1);
   }
   CHECK(Count(hooks, "gw2::unlock_all_modes::RestoreForWrite(base)") == 1);
-  CHECK(Count(hooks, "ServiceFrame(base)") >= 2);
+  CHECK(Count(hooks, "gw2::unlock_all_modes::OnProfileLoaded(base)") == 1);
+  // The load hook must use OnProfileLoaded, not the plain per-frame ServiceFrame, so a reload while the cheat is
+  // already on is always captured as a genuinely new real mask.
+  CHECK(hooks.find("__imp__sub_8207F5B8(ctx, base);\n  gw2::unlock_all_modes::OnProfileLoaded(base);") !=
+        std::string::npos);
+  CHECK(Count(hooks, "ServiceFrame(base)") == 1);
 
   const std::string window_host = ReadSource("window_host.cpp");
   CHECK(Count(window_host, "gw2::unlock_all_modes::ServiceFrame(base)") == 1);
@@ -231,6 +296,9 @@ int main() {
   TestOnlyTheMaskIsEverInvolved();
   TestMaskForWriteNeverReturnsTheArtificialMaskUnlessItIsReal();
   TestRoundTrip();
+  TestProfileReloadWhileOnRefreshesTheRealMask();
+  TestRepeatedReloadsWhileOnAlwaysTrackTheLatestGenuineMask();
+  TestGenuineAllModesMaskSurvivesAReloadWhileOn();
   TestWiredIntoLauncherAndOptionsMenu();
   TestHooksAreWired();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);

@@ -57,9 +57,16 @@ constexpr uint32_t MaskForWrite(bool overriding, uint32_t real_mask, uint32_t cu
 // Whether the saved setting (or a launcher/options-menu edit already applied to it) is on.
 bool Enabled();
 
-// Applies Sync() to the local player's live profile record. Called once per guest frame and right after the
-// profile loads.
+// Applies Sync() to the local player's live profile record, tracking the real mask as already frozen (if the
+// cheat was already on last call). Called once per guest frame, and right after the profile writes.
 void ServiceFrame(uint8_t* base);
+
+// Applies Sync() as if the cheat had just turned on from here, so a mask the game just parsed into the live
+// record is always captured as the new real mask, even while the cheat is already on. Called right after the
+// profile loads: that is the only place a genuinely different mask can appear while overriding, since nothing
+// else writes it except this cheat's own ServiceFrame/RestoreForWrite, which only ever write back a mask this
+// cheat already knows about.
+void OnProfileLoaded(uint8_t* base);
 
 // Applies MaskForWrite() to the local player's live profile record. Called right before the game writes its
 // profile.

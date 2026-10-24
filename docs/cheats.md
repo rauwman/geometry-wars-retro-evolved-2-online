@@ -2,6 +2,8 @@
 
 Four cheats act on the running game through function hooks (`src/cheat_hooks.cpp`). Each reads `gw2::cheats::Enabled` (Movement Speed reads `gw2::cheats::MovementSpeed`), so the launcher's saved value and the F10 menu's session override both apply at once, with no restart. When a cheat is Off its hook calls the original function unchanged. Scores, leaderboards, achievements, progression and saves are not touched. The launcher page and the F10 menu are described in [launcher.md](launcher.md).
 
+The F10 menu and the in-game Options menu's Cheats page also offer **Add 100 Lives**, a one-shot action rather than a hook-based cheat (`src/add_lives.cpp`), and **Unlock all game modes**, a plain Gameplay setting (`src/unlock_all_modes.cpp`) that only ever changes the profile's mode-unlock mask: see [launcher.md](launcher.md) for both.
+
 The game ships its own developer cheats (`Cheat.Invulnerable`, `Cheat.Shield`, `Cheat.ExtraBomb`), registered as global variables. They show where the real logic is, and the hooks follow them:
 
 - `Cheat.Invulnerable` is a flag read only at the top of the player's hit handler, which then returns without doing anything.

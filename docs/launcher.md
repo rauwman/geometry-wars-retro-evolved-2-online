@@ -106,6 +106,9 @@ Each value is the one ReXGlue's registry describes. A setting ReXGlue marks as r
 | Frame rate in title | Off, On (default On) | `gw2_show_fps` |
 | Render resolution in title | Off, On (default Off) | `gw2_show_render_resolution` |
 | Frame counter | Hidden, Shown (default Hidden) | `gw2_show_frame_counter` |
+| Unlock all game modes | Off, On (default Off) | `gw2_unlock_all_game_modes` |
+
+Unlock all game modes makes every mode selectable without changing saved progression: the real unlocked-modes mask is kept (and, if the profile reloads or resets while it is on, the newly loaded mask replaces it) and is restored exactly, with no other profile data touched, the moment it is turned back off.
 
 With On, the window title is `Geometry Wars: Retro Evolved 2 | FPS: 60.00`, refreshed about once a second. With Off, and until the first sample, it is `Geometry Wars: Retro Evolved 2`.
 
@@ -141,7 +144,8 @@ The game side of each cheat is in [cheats.md](cheats.md).
 - The names, cvars and descriptions live once, in `src/cheats.h` (`kCheats`). The launcher page, the in-game menu and `ManagedSettings()` are all built from that list.
 - The cheats are ordinary hot launcher settings: PLAY applies them without a restart, Save keeps them, Reset all settings puts them back to Off. They do not turn off scores, leaderboards, achievements, progression or profile saves.
 - Game code reads `gw2::cheats::Enabled`, which is the saved launcher value unless the in-game menu overrode it in this session.
-- **F10** opens and closes the in-game cheat menu: CHEATS, the four rows, a separator, then `F10 Close` and `Not saved to the launcher`. Up and Down (D-pad, left stick or arrow keys) move, A or Enter toggles a row (Movement Speed steps Off, 2x, 4x), and B, Escape or F10 close it. The menu exists only after the game has started, so F10 does nothing over the launcher or the installer. The ReXGlue overlays use other keys.
+- **F10** opens and closes the in-game cheat menu: CHEATS, the four cheat rows, **Add 100 Lives**, a separator, then `F10 Close` and `Not saved to the launcher`. Up and Down (D-pad, left stick or arrow keys) move, A or Enter toggles a row (Movement Speed steps Off, 2x, 4x; Add 100 Lives adds them at once instead of toggling), and B, Escape or F10 close it. The menu exists only after the game has started, so F10 does nothing over the launcher or the installer. The ReXGlue overlays use other keys.
+- Add 100 Lives is not a saved setting: it is a session-only action, also on the in-game Options menu's Cheats page, that adds 100 lives to the local player immediately and has no launcher page row.
 - Menu changes are for the running session only and are never written to `settings.toml`; the next start uses the launcher's values.
 - While the menu is open the game reads no keyboard or controller input (`InputSystem::SetActiveCallback`), and input returns once what was pressed in the menu is released, so closing with B or Escape never also presses it in the game. F10 and Escape are consumed by a window input listener above the ImGui drawer. The achievements overlay does not open while the menu is open, and the menu does not open over it.
 - The menu is a `rex::ui::ImGuiDialog` on the drawer ReXApp already owns; any controller SDL recognizes (Xbox, DualSense, Steam Controller) reaches ImGui through the same `ImGuiGamepad` the launcher uses.
