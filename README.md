@@ -15,8 +15,8 @@ This is an unofficial fan-made fork of [saulob/geometry-wars-retro-evolved-2-rec
 
 ## What this fork adds
 
-- **Online name.** The launcher has an **Online** page: enter the server address and invite code you got from the person who runs the server, pick a name (checked while you type) and create it.
-- **Scores for friends.** Your best scores are uploaded in the background when a game ends. The game's own **Overall**, **My score** and **Friends** screens list everyone on the server, ranked per mode.
+- **Online name.** The launcher has an **Online** page: pick a name (checked while you type) and create it. No invite and no server address: the global leaderboard comes with the game.
+- **Global leaderboard and friends.** Your best scores are uploaded in the background when a game ends. The game's own **Overall** screen is the global board, **My score** shows you among the players around you, and **Friends** shows you and the friends you added, ranked per mode. Friends are asked by name and need the other player's consent.
 - **No cheated scores.** A game in which a cheat was in effect is not uploaded.
 - **Account key.** Copy your private key on the Online page; after a reinstall, paste it under **Restore** to get your name back.
 - **Nothing blocks the game.** Without a server or a connection the game shows your own scores, as before.
@@ -30,7 +30,7 @@ A server is **not** included and not hosted for you: someone you know has to run
 
 ## Download
 
-**GeometryWarsRetroEvolved2-windows-x64.zip** from the [latest release](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/releases/latest). The version is the fork's own; this release is based on upstream v0.5.0. The launcher checks this repository's releases for updates.
+**GeometryWarsRetroEvolved2-v1.0.0-windows-x64.zip** from the [latest release](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/releases/latest). The version is the fork's own; this release is based on upstream v0.5.0. The launcher checks this repository's releases for updates.
 
 You need Windows 10 or 11 (64-bit), a DirectX 12 graphics card and **your own Geometry Wars: Retro Evolved 2 Xbox Live Arcade package**. Extract the ZIP, run `geometry_wars_retro_evolved_2.exe` and install the game from your package on the launcher's **Play** page. The exact game version, launcher pages, saves and troubleshooting are in the [full manual](docs/manual.md).
 

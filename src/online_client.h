@@ -72,8 +72,8 @@ enum class AccountError {
   kNone,
   kInvalidName,
   kNameTaken,
-  kWrongInvite,
   kClosed,
+  kRefused,  // the server said no and explained why in `message` (unknown name, full friend list, ...)
   kRateLimited,
   kBadToken,
   kUnreachable,
@@ -93,21 +93,48 @@ struct RegisterResult {
   bool ok() const { return error == AccountError::kNone; }
 };
 
-RegisterResult Register(HttpTransport& transport, const std::string& base_url, std::string_view name,
-                        std::string_view invite);
+RegisterResult Register(HttpTransport& transport, const std::string& base_url, std::string_view name);
 
 // Signs in with an account key (the private token of a name created earlier, e.g. before a reinstall): asks the
 // server whose it is. The account carries the server's name and id and the same token.
 RegisterResult Restore(HttpTransport& transport, const std::string& base_url, const std::string& token);
 
-struct RenameResult {
+struct ActionResult {
   AccountError error = AccountError::kServer;
   std::string message;
   bool ok() const { return error == AccountError::kNone; }
 };
+using RenameResult = ActionResult;
 
 RenameResult Rename(HttpTransport& transport, const std::string& base_url, const std::string& token,
                     std::string_view name);
+
+// -- Friends. A player asks another by name; the other one has to accept.
+
+// Deletes the account on the server: the name, the scores, the friendships. The caller forgets the account key.
+ActionResult DeleteAccount(HttpTransport& transport, const std::string& base_url, const std::string& token);
+
+struct Person {
+  std::string xuid;  // the server's id, 16 hex digits
+  std::string name;
+};
+
+struct FriendRequestResult : ActionResult {
+  bool friends = false;  // true: the two of you are friends now (the other one had asked you first)
+  Person person;         // the player who was asked
+};
+// What the player typed to find a friend: a player name, trimmed. Empty when there is nothing usable.
+std::string FriendTarget(std::string_view text);
+
+// Asks the player with that name to be friends. The request counts once they accept it.
+FriendRequestResult SendFriendRequest(HttpTransport& transport, const std::string& base_url, const std::string& token,
+                                      std::string_view name);
+
+enum class FriendAction { kAccept, kDecline, kCancel, kRemove };
+// Answers a request from `xuid` (kAccept, kDecline), takes back your own request to `xuid` (kCancel) or ends a
+// friendship (kRemove).
+ActionResult AnswerFriend(HttpTransport& transport, const std::string& base_url, const std::string& token,
+                          FriendAction action, std::string_view xuid);
 
 enum class UploadResult {
   kOk,

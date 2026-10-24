@@ -42,8 +42,8 @@ REXCVAR_DEFINE_BOOL(gw2_msaa_compatibility, false, "Geometry Wars",
                     "misrenders (sets native_2x_msaa)")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_STRING(gw2_online_url, "", "Online",
-                      "Address of the friends leaderboard server, https://host (set by the launcher)");
-REXCVAR_DEFINE_STRING(gw2_online_invite, "", "Online", "Invite code for creating an online name on that server");
+                      "Address of the leaderboard server, https://host; empty uses the one that comes with the game");
+REXCVAR_DEFINE_STRING(gw2_online_invite, "", "Online", "No longer used: signing up is open");
 REXCVAR_DEFINE_STRING(gw2_online_name, "", "Online", "Your online name, shown on the leaderboard (set by the launcher)");
 REXCVAR_DEFINE_STRING(gw2_online_token, "", "Online", "Secret that proves the name is yours (set by the launcher)");
 REXCVAR_DEFINE_STRING(gw2_graphics_adapter, gw2::kGraphicsAdapterAuto, "Geometry Wars",

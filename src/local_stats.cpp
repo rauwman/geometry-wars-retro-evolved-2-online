@@ -61,7 +61,7 @@ LoadResult LocalStats::Load() {
   best_.clear();
 
   std::error_code ec;
-  if (!std::filesystem::is_regular_file(file_, ec)) return LoadResult::kMissing;
+  if (file_.empty() || !std::filesystem::is_regular_file(file_, ec)) return LoadResult::kMissing;
 
   std::string text;
   const uintmax_t size = std::filesystem::file_size(file_, ec);
@@ -151,6 +151,7 @@ RecordResult LocalStats::Record(uint64_t xuid, uint32_t view, int64_t score) {
 }
 
 bool LocalStats::Save() const {
+  if (file_.empty()) return true;  // in-memory store
   std::string text =
       "# Offline scores for the local player: one best score per user and view. No Xbox Live.\n"
       "version = 1\n";

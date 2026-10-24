@@ -68,16 +68,17 @@ alone. If the program folder cannot be written to, the old Documents folder is
 used for that run.
 
 
-FRIENDS LEADERBOARD (OPTIONAL)
-------------------------------
-If someone you know runs a leaderboard server for this port, they give you its
-address and an invite code. Open the Online page in the launcher, enter both
-(Paste buttons are there), pick a name and press "Create online name". Your best
-scores are then uploaded when a game ends, and the game's leaderboard screens
-show you and your friends. Cheated games are never uploaded.
+GLOBAL LEADERBOARD AND FRIENDS (OPTIONAL)
+-----------------------------------------
+Open the Online page in the launcher, pick a name and press "Create online name".
+Your best scores are then uploaded when a game ends, and the game's leaderboard
+screens show the global board and, under "Friends", you and your friends. Cheated
+games are never uploaded.
+Friends: enter a player's name on the Online page and press
+"Send request". They have to accept before you see each other. "Delete account" removes your name, scores and friendships from the server.
 Before you delete or reinstall the game, press "Copy account key" on the Online
 page and keep the key somewhere private: with it you get your name back
-("Restore account"). Without a server address the game stays fully offline.
+("Restore account"). Without an online name the game stays fully offline.
 
 
 WINDOWS SMARTSCREEN

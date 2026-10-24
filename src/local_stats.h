@@ -21,6 +21,8 @@ class LocalStats {
   static constexpr uint32_t kMaxViews = 16;
 
   explicit LocalStats(std::filesystem::path file) : file_(std::move(file)) {}
+  // A store that lives in memory only: nothing is read or written, and it starts empty for every run.
+  LocalStats() = default;
 
   // A file that cannot be parsed is moved aside to <file>.corrupt and the store starts empty.
   LoadResult Load();

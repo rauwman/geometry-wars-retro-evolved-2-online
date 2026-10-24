@@ -52,8 +52,11 @@ inline constexpr char kShowFrameCounterKey[] = "gw2_show_frame_counter";
 inline constexpr bool kShowFrameCounterDefault = false;
 inline constexpr char kDetailedLoggingKey[] = "detailed_logging";
 
-// The friends leaderboard account. The address and invite code come with the release; the name and token are made
-// by the launcher's Online page. Reset to defaults leaves all four alone.
+// The global leaderboard account. The server comes with the game (kDefaultOnlineUrl); gw2_online_url overrides it,
+// for testing. The name and the account key are made by the launcher's Online page. gw2_online_invite is no longer
+// used (sign-up is open); it stays so that settings files written by version 1.0.0 remain valid. Reset to defaults
+// leaves all four alone.
+inline constexpr char kDefaultOnlineUrl[] = "https://gw2.rauwman.org";
 inline constexpr char kOnlineUrlKey[] = "gw2_online_url";
 inline constexpr char kOnlineInviteKey[] = "gw2_online_invite";
 inline constexpr char kOnlineNameKey[] = "gw2_online_name";

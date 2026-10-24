@@ -16,7 +16,6 @@ struct AppBridge {
 
 struct InstallParams {
   std::filesystem::path stats_file;
-  std::filesystem::path online_scores_file;  // best scores earned without cheats: what the leaderboard server gets
   LocalUser user;
   AppBridge bridge;
 };

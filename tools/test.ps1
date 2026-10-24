@@ -33,6 +33,7 @@ $CheatsExe = Join-Path $OutDir 'cheats_tests.exe'
 $OnlineExe = Join-Path $OutDir 'online_tests.exe'
 $OnlineBoardExe = Join-Path $OutDir 'online_board_tests.exe'
 $ProfileNameExe = Join-Path $OutDir 'profile_name_tests.exe'
+$ProfileSyncExe = Join-Path $OutDir 'profile_sync_tests.exe'
 $AdapterExe = Join-Path $OutDir 'graphics_adapter_tests.exe'
 $AspectExe = Join-Path $OutDir 'aspect_ratio_tests.exe'
 $UpdateExe = Join-Path $OutDir 'update_tests.exe'
@@ -116,6 +117,9 @@ try {
         (Join-Path $Root 'tests\profile_name_tests.cpp') -o $ProfileNameExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
+        (Join-Path $Root 'tests\profile_sync_tests.cpp') -o $ProfileSyncExe
+    if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
+    & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
         (Join-Path $Root 'tests\graphics_adapter_tests.cpp') (Join-Path $Root 'src\graphics_adapters.cpp') `
         -ladvapi32 -ldxgi -ld3d12 -o $AdapterExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
@@ -167,6 +171,8 @@ if ($LASTEXITCODE) { throw "Online tests failed ($LASTEXITCODE)" }
 if ($LASTEXITCODE) { throw "Online board tests failed ($LASTEXITCODE)" }
 & $ProfileNameExe
 if ($LASTEXITCODE) { throw "Profile name tests failed ($LASTEXITCODE)" }
+& $ProfileSyncExe
+if ($LASTEXITCODE) { throw "Profile sync tests failed ($LASTEXITCODE)" }
 & $AdapterExe
 if ($LASTEXITCODE) { throw "Graphics card tests failed ($LASTEXITCODE)" }
 & $AspectExe

@@ -26,6 +26,7 @@ namespace gw2 {
 namespace {
 
 constexpr double kCheckDelaySeconds = 0.4;
+constexpr double kReloadFriendsSeconds = 20.0;
 
 const ImVec4 kGood(0.35f, 0.85f, 0.45f, 1.0f);
 const ImVec4 kBad(0.95f, 0.40f, 0.35f, 1.0f);
@@ -119,13 +120,12 @@ int PasteField(const char* id, const char* hint, char* buffer, size_t size, bool
 void OnlinePage::LoadBuffers() {
   if (loaded_) return;
   loaded_ = true;
-  CopyInto(url_, sizeof url_, settings_.Get(kOnlineUrlKey));
-  CopyInto(invite_, sizeof invite_, settings_.Get(kOnlineInviteKey));
   CopyInto(name_, sizeof name_, settings_.Get(kOnlineNameKey));
 }
 
+// The server comes with the game. A different one can be set in the player settings (gw2_online_url) for testing.
 std::string OnlinePage::ServerUrl() const {
-  return online::NormalizeBaseUrl(url_);
+  return online::NormalizeBaseUrl(settings_.Get(kOnlineUrlKey, kDefaultOnlineUrl));
 }
 
 void OnlinePage::Say(std::string text, bool good) {
@@ -153,12 +153,10 @@ void OnlinePage::StartRegister() {
   outcome->kind = Kind::kRegister;
   outcome->name = name_;
   outcome->url = ServerUrl();
-  outcome->invite = invite_;
   Say("Creating your name...", true);
   const bool started = task_.Start("Creating online name...", [outcome](trg::Task&) {
     const auto transport = online::MakeSystemTransport();
-    const online::RegisterResult result =
-        online::Register(*transport, outcome->url, outcome->name, outcome->invite);
+    const online::RegisterResult result = online::Register(*transport, outcome->url, outcome->name);
     outcome->error = result.error;
     outcome->message = result.message;
     outcome->account = result.account;
@@ -201,10 +199,90 @@ void OnlinePage::StartRename() {
   if (started) outcome_ = std::move(outcome);
 }
 
+void OnlinePage::StartFriends() {
+  auto outcome = std::make_shared<Outcome>();
+  outcome->kind = Kind::kFriends;
+  outcome->url = ServerUrl();
+  const std::string token = settings_.Get(kOnlineTokenKey);
+  const bool started = task_.Start("Loading friends...", [outcome, token](trg::Task&) {
+    const auto transport = online::MakeSystemTransport();
+    const online::FriendsResult result = online::FetchFriends(*transport, outcome->url, token);
+    outcome->error = result.error;
+    outcome->message = result.message;
+    outcome->overview = result.overview;
+    return std::string();
+  });
+  if (started) {
+    outcome_ = std::move(outcome);
+    overview_stale_ = false;
+    overview_asked_at_ = ImGui::GetTime();
+  }
+}
+
+void OnlinePage::StartSendRequest() {
+  auto outcome = std::make_shared<Outcome>();
+  outcome->kind = Kind::kSendRequest;
+  outcome->url = ServerUrl();
+  outcome->name = friend_name_;
+  const std::string token = settings_.Get(kOnlineTokenKey);
+  Say("Sending the request...", true);
+  const bool started = task_.Start("Sending friend request...", [outcome, token](trg::Task&) {
+    const auto transport = online::MakeSystemTransport();
+    const online::FriendRequestResult result =
+        online::SendFriendRequest(*transport, outcome->url, token, outcome->name);
+    outcome->error = result.error;
+    outcome->message = result.message;
+    outcome->name = result.person.name;
+    outcome->friends_now = result.friends;
+    return std::string();
+  });
+  if (started) outcome_ = std::move(outcome);
+}
+
+void OnlinePage::StartAnswer(online::FriendAction action, const online::Person& person) {
+  auto outcome = std::make_shared<Outcome>();
+  outcome->kind = Kind::kAnswer;
+  outcome->url = ServerUrl();
+  outcome->action = action;
+  outcome->xuid = person.xuid;
+  outcome->name = person.name;
+  const std::string token = settings_.Get(kOnlineTokenKey);
+  confirm_remove_.clear();
+  const bool started = task_.Start("Updating friends...", [outcome, token](trg::Task&) {
+    const auto transport = online::MakeSystemTransport();
+    const online::ActionResult result =
+        online::AnswerFriend(*transport, outcome->url, token, outcome->action, outcome->xuid);
+    outcome->error = result.error;
+    outcome->message = result.message;
+    return std::string();
+  });
+  if (started) outcome_ = std::move(outcome);
+}
+
+void OnlinePage::StartDelete() {
+  auto outcome = std::make_shared<Outcome>();
+  outcome->kind = Kind::kDelete;
+  outcome->url = ServerUrl();
+  const std::string token = settings_.Get(kOnlineTokenKey);
+  Say("Deleting your account...", true);
+  const bool started = task_.Start("Deleting online account...", [outcome, token](trg::Task&) {
+    const auto transport = online::MakeSystemTransport();
+    const online::ActionResult result = online::DeleteAccount(*transport, outcome->url, token);
+    outcome->error = result.error;
+    outcome->message = result.message;
+    return std::string();
+  });
+  if (started) outcome_ = std::move(outcome);
+}
+
 void OnlinePage::SignOut() {
   if (settings_.SaveNow({{kOnlineNameKey, ""}, {kOnlineTokenKey, ""}})) {
     name_[0] = '\0';
     checked_name_.clear();
+    overview_ = {};
+    overview_loaded_ = false;
+    overview_stale_ = true;
+    overview_error_.clear();
     Say("Signed out. Your scores stay on this PC.", true);
   } else {
     Say("Could not save the settings.", false);
@@ -217,6 +295,11 @@ void OnlinePage::Poll() {
   const std::shared_ptr<Outcome> outcome = std::move(outcome_);
   if (!outcome) return;
 
+  const auto failure = [&] {
+    Say(outcome->message.empty() ? online::DescribeError(outcome->error) : outcome->message, false);
+  };
+  const bool failed = outcome->error != online::AccountError::kNone;
+
   switch (outcome->kind) {
     case Kind::kCheck:
       checked_name_ = outcome->name;
@@ -224,14 +307,12 @@ void OnlinePage::Poll() {
       check_ = outcome->check;
       break;
     case Kind::kRegister:
-      if (outcome->error != online::AccountError::kNone) {
-        Say(outcome->message.empty() ? online::DescribeError(outcome->error) : outcome->message, false);
+      if (failed) {
+        failure();
         break;
       }
-      if (settings_.SaveNow({{kOnlineUrlKey, outcome->url},
-                             {kOnlineInviteKey, outcome->invite},
-                             {kOnlineNameKey, outcome->account.name},
-                             {kOnlineTokenKey, outcome->account.token}})) {
+      // The address is not saved: it comes with the game unless the player settings name another one.
+      if (settings_.SaveNow({{kOnlineNameKey, outcome->account.name}, {kOnlineTokenKey, outcome->account.token}})) {
         CopyInto(name_, sizeof name_, outcome->account.name);
         Say("Welcome, " + outcome->account.name + "! Your scores now go to the leaderboard.", true);
         REXLOG_INFO("Online: created the name \"{}\"", outcome->account.name);
@@ -239,15 +320,14 @@ void OnlinePage::Poll() {
         Say("The name was created but could not be saved here. Check that the data folder is writable.", false);
       }
       checked_name_.clear();
+      overview_stale_ = true;
       break;
     case Kind::kRestore:
-      if (outcome->error != online::AccountError::kNone) {
-        Say(outcome->message.empty() ? online::DescribeError(outcome->error) : outcome->message, false);
+      if (failed) {
+        failure();
         break;
       }
-      if (settings_.SaveNow({{kOnlineUrlKey, outcome->url},
-                             {kOnlineNameKey, outcome->account.name},
-                             {kOnlineTokenKey, outcome->account.token}})) {
+      if (settings_.SaveNow({{kOnlineNameKey, outcome->account.name}, {kOnlineTokenKey, outcome->account.token}})) {
         CopyInto(name_, sizeof name_, outcome->account.name);
         key_[0] = '\0';
         Say("Welcome back, " + outcome->account.name + "! Your scores go to the leaderboard again.", true);
@@ -256,10 +336,11 @@ void OnlinePage::Poll() {
         Say("The account was found but could not be saved here. Check that the data folder is writable.", false);
       }
       checked_name_.clear();
+      overview_stale_ = true;
       break;
     case Kind::kRename:
-      if (outcome->error != online::AccountError::kNone) {
-        Say(outcome->message.empty() ? online::DescribeError(outcome->error) : outcome->message, false);
+      if (failed) {
+        failure();
         break;
       }
       if (settings_.SaveNow(kOnlineNameKey, outcome->name)) {
@@ -269,6 +350,126 @@ void OnlinePage::Poll() {
       }
       checked_name_.clear();
       break;
+    case Kind::kFriends:
+      if (failed) {
+        overview_error_ = outcome->message.empty() ? online::DescribeError(outcome->error) : outcome->message;
+        break;
+      }
+      overview_ = outcome->overview;
+      overview_loaded_ = true;
+      overview_error_.clear();
+      break;
+    case Kind::kSendRequest:
+      if (failed) {
+        failure();
+        break;
+      }
+      friend_name_[0] = '\0';
+      if (outcome->friends_now) {
+        Say("You and " + outcome->name + " are friends now.", true);
+      } else {
+        Say("Request sent to " + outcome->name + ". It counts as soon as they accept it.", true);
+      }
+      overview_stale_ = true;
+      break;
+    case Kind::kAnswer:
+      if (failed) {
+        failure();
+        overview_stale_ = true;  // the list may be out of date: that is often why it failed
+        break;
+      }
+      switch (outcome->action) {
+        case online::FriendAction::kAccept: Say("You and " + outcome->name + " are friends now.", true); break;
+        case online::FriendAction::kDecline: Say("Request declined. " + outcome->name + " is not told.", true); break;
+        case online::FriendAction::kCancel: Say("Request to " + outcome->name + " taken back.", true); break;
+        case online::FriendAction::kRemove: Say(outcome->name + " is no longer your friend.", true); break;
+      }
+      overview_stale_ = true;
+      break;
+    case Kind::kDelete:
+      if (failed) {
+        failure();
+        break;
+      }
+      if (settings_.SaveNow({{kOnlineNameKey, ""}, {kOnlineTokenKey, ""}})) {
+        name_[0] = '\0';
+        overview_ = {};
+        overview_loaded_ = false;
+        overview_stale_ = true;
+        Say("Your online account is deleted. Your scores stay on this PC.", true);
+        REXLOG_INFO("Online: the account was deleted");
+      } else {
+        Say("The account was deleted on the server, but this PC could not forget the key. Use Sign out.", false);
+      }
+      checked_name_.clear();
+      break;
+  }
+}
+
+void OnlinePage::DrawFriends(trg::Ui& ui, bool busy) {
+  // -- add a friend
+  ui.Row("Add a friend", "Enter the name of a player. They get a request and have to accept it.");
+  PasteField("friendname", "player name", friend_name_, sizeof friend_name_, false);
+  ui.Row("", nullptr);
+  const bool can_send = !busy && !online::FriendTarget(friend_name_).empty();
+  ImGui::BeginDisabled(!can_send);
+  if (ui.AccentButton("Send request")) StartSendRequest();
+  ImGui::EndDisabled();
+
+  // -- requests
+  if (!overview_.incoming.empty()) {
+    ui.Row("Requests", "These players want to be your friend.");
+    for (const online::Person& person : overview_.incoming) {
+      ImGui::PushID(person.xuid.c_str());
+      ImGui::TextUnformatted(person.name.c_str());
+      ImGui::SameLine();
+      ImGui::BeginDisabled(busy);
+      if (ImGui::SmallButton("Accept")) StartAnswer(online::FriendAction::kAccept, person);
+      ImGui::SameLine();
+      if (ImGui::SmallButton("Decline")) StartAnswer(online::FriendAction::kDecline, person);
+      ImGui::EndDisabled();
+      ImGui::PopID();
+    }
+  }
+  if (!overview_.outgoing.empty()) {
+    ui.Row("Sent requests", "Waiting for an answer.");
+    for (const online::Person& person : overview_.outgoing) {
+      ImGui::PushID(person.xuid.c_str());
+      ImGui::TextUnformatted(person.name.c_str());
+      ImGui::SameLine();
+      ImGui::BeginDisabled(busy);
+      if (ImGui::SmallButton("Take back")) StartAnswer(online::FriendAction::kCancel, person);
+      ImGui::EndDisabled();
+      ImGui::PopID();
+    }
+  }
+
+  // -- friends
+  ui.Row("Friends", "The Friends board in the game shows them and you. New friends appear when the game starts.");
+  if (overview_.friends.empty()) {
+    ImGui::TextDisabled("%s", overview_loaded_ ? "No friends yet." : "");
+  }
+  for (const online::Person& person : overview_.friends) {
+    ImGui::PushID(person.xuid.c_str());
+    ImGui::TextUnformatted(person.name.c_str());
+    ImGui::SameLine();
+    ImGui::BeginDisabled(busy);
+    if (confirm_remove_ == person.xuid) {
+      ImGui::TextUnformatted("Remove?");
+      ImGui::SameLine();
+      if (ImGui::SmallButton("Yes")) StartAnswer(online::FriendAction::kRemove, person);
+      ImGui::SameLine();
+      if (ImGui::SmallButton("No")) confirm_remove_.clear();
+    } else if (ImGui::SmallButton("Remove")) {
+      confirm_remove_ = person.xuid;
+    }
+    ImGui::EndDisabled();
+    ImGui::PopID();
+  }
+  if (!overview_error_.empty()) {
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextColored(kBad, "Could not refresh the friends: %s", overview_error_.c_str());
+    ImGui::PopTextWrapPos();
   }
 }
 
@@ -279,40 +480,23 @@ void OnlinePage::Draw(trg::Ui& ui) {
   const bool busy = task_.running();
   const std::string url = ServerUrl();
 
-  ui.Help(signed_in ? "You are on the leaderboard. Your best scores are uploaded when a game ends, and the game "
-                      "shows this name."
-                    : "Pick a name for the friends leaderboard. It is shown in the game and on the website. "
+  ui.Help(signed_in ? "You are on the global leaderboard. Your best scores are uploaded when a game ends. Friends are "
+                      "players you and they both agreed on."
+                    : "Pick a name for the global leaderboard. It is shown in the game and on the website. "
                       "Scores earned with cheats are never uploaded.");
   ui.Spacer(8);
 
-  // -- server
-  ui.Row("Server", "The address of your friends' leaderboard, https://...");
-  const int url_result = PasteField("server", "https://", url_, sizeof url_, signed_in);
-  if (url_result != 0) {
-    edited_at_ = ImGui::GetTime();
-    message_.clear();
-    const std::string typed_url = ServerUrl();
-    if (!typed_url.empty()) {
-      if (url_result == 2) {
-        settings_.SaveNow(kOnlineUrlKey, typed_url);
-      } else {
-        settings_.Set(kOnlineUrlKey, typed_url);  // kept with Play or Save; Create online name saves it at once
-      }
-    }
-  }
-  if (!signed_in) {
-    ui.Row("Invite code", "From the person who runs the server.");
-    const int invite_result =
-        PasteField("invite", "invite code", invite_, sizeof invite_, false, ImGuiInputTextFlags_Password);
-    if (invite_result == 2) settings_.SaveNow(kOnlineInviteKey, std::string(invite_));
-    if (invite_result == 1) settings_.Set(kOnlineInviteKey, std::string(invite_));
-  } else {
+  if (signed_in) {
+    // Ask for the friends when the page opens, after every change, and now and then while it stays open.
+    if (!busy && (overview_stale_ || ImGui::GetTime() - overview_asked_at_ >= kReloadFriendsSeconds)) StartFriends();
     if (ui.ButtonRow("Account key", "Private. Keep it: with it a reinstalled game gets this name back.",
                      "Copy account key")) {
       Say(SetClipboardText(settings_.Get(kOnlineTokenKey)) ? "Account key copied. Keep it somewhere safe and private."
                                                             : "Could not use the clipboard.",
           true);
     }
+  } else {
+    overview_stale_ = true;  // load right away after signing in
   }
 
   // -- name
@@ -335,8 +519,7 @@ void OnlinePage::Draw(trg::Ui& ui) {
     status = problem;
     color = kBad;
   } else if (url.empty()) {
-    status = std::string(url_).empty() ? "Enter the server address first."
-                                       : "The server address must start with https://";
+    status = "The server address is not usable. Check gw2_online_url in the player settings.";
   } else if (checked_name_ == typed && checked_url_ == url) {
     switch (check_.state) {
       case online::NameState::kAvailable:
@@ -371,7 +554,7 @@ void OnlinePage::Draw(trg::Ui& ui) {
   // -- actions
   ui.Row("", nullptr);
   if (!signed_in) {
-    const bool can = name_ok && !busy && std::string(invite_).size() > 0;
+    const bool can = name_ok && !busy;
     ImGui::BeginDisabled(!can);
     if (ui.AccentButton("Create online name")) StartRegister();
     ImGui::EndDisabled();
@@ -389,10 +572,22 @@ void OnlinePage::Draw(trg::Ui& ui) {
     ImGui::BeginDisabled(!can);
     if (ui.AccentButton("Change name")) StartRename();
     ImGui::EndDisabled();
+
+    ui.Spacer(8);
+    DrawFriends(ui, busy);
+    ui.Spacer(8);
+
     if (ui.ConfirmRow("Sign out", "Stops uploading scores. Your name stays reserved on the server.", "Sign out",
                       "Sign out of the leaderboard on this PC?")) {
       SignOut();
     }
+    ImGui::BeginDisabled(busy);
+    if (ui.ConfirmRow("Delete account",
+                      "Removes your name, scores and friendships from the server for good. Scores on this PC stay.",
+                      "Delete account", "Delete your online account for good?")) {
+      StartDelete();
+    }
+    ImGui::EndDisabled();
   }
   if (!message_.empty()) {
     ui.Row("", nullptr);

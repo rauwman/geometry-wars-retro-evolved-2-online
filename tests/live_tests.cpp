@@ -100,6 +100,17 @@ static void TestLocalStats() {
     LocalStats s(file);
     Check(s.Load() == LoadResult::kMissing && !s.Best(kXuid, 0), "deleting the data gives a clean state again");
   }
+
+  {
+    // The store behind the online upload: in memory only, empty at every start, never touches the disk.
+    LocalStats memory;
+    Check(memory.Load() == LoadResult::kMissing && !memory.Best(kXuid, 0), "in-memory store: starts empty");
+    Check(memory.Record(kXuid, 0, 500) == RecordResult::kSaved, "in-memory store: a score is kept");
+    Check(memory.Record(kXuid, 0, 400) == RecordResult::kUnchanged, "in-memory store: a lower score is ignored");
+    Check(memory.Best(kXuid, 0) == 500 && memory.BestAll(kXuid).size() == 1, "in-memory store: the best is returned");
+    LocalStats next;
+    Check(!next.Best(kXuid, 0).has_value(), "in-memory store: a new run does not see the old one");
+  }
 }
 
 static void TestCorruptAndEdited() {

@@ -41,16 +41,26 @@ struct BoardRow {
   std::string xuid;  // the server's id for the player, 16 hex digits
   std::string name;
   int64_t score = 0;
+  uint32_t rank = 0;  // the server's rank in this list; 0 when the server did not say
+};
+
+struct OwnRank {
+  uint32_t rank = 0;  // among all players
+  int64_t score = 0;
 };
 
 struct ServerBoard {
-  uint32_t total = 0;
-  std::vector<BoardRow> rows;  // best first
+  uint32_t total = 0;                // players with a score in this view
+  std::vector<BoardRow> rows;        // the top of the global board, best first
+  std::optional<OwnRank> mine;       // where the signed-in player stands, when they have a score
+  std::vector<BoardRow> around;      // the rows near the player, only when they are not in `rows`
+  std::vector<BoardRow> friends;     // the accepted friends with a score, and the player, ranked among themselves
 };
 
 struct BoardsSnapshot {
   int64_t revision = 0;
   std::string me;  // the server's id for the signed-in player
+  std::vector<Person> friends;  // every accepted friend, with or without a score
   std::map<uint32_t, ServerBoard> views;
 };
 
@@ -68,14 +78,33 @@ struct OwnPlayer {
   std::optional<int64_t> best;  // the clean score on this PC in this view, which the server may not have yet
 };
 
-// Every row of one view, ranked from 1: the server's rows, with the player's own row under the game's own id and
-// carrying the better of the server's score and the one on this PC.
+// The global board of one view: the server's top rows, with the player's own row under the game's own id and
+// carrying the better of the server's score and the one on this PC. A player outside the top rows keeps the server's
+// rank, with the rows around them.
 live::StatsView CombinedView(uint32_t view, const ServerBoard* board, const OwnPlayer& own);
+
+// The friends board of one view: the accepted friends and the player, ranked among themselves, the player's own row
+// as in CombinedView.
+live::StatsView FriendsView(uint32_t view, const ServerBoard* board, const OwnPlayer& own);
 
 // `max_rows` rows from `first_rank` on.
 live::StatsView RankedWindow(const live::StatsView& all, uint32_t first_rank, uint32_t max_rows);
 // `max_rows` rows with the player's own row in the middle. Empty when the player has no row.
 live::StatsView AroundWindow(const live::StatsView& all, uint64_t local_xuid, uint32_t max_rows);
+
+// The friends and the open requests (GET /v1/friends).
+struct FriendsOverview {
+  std::vector<Person> friends;
+  std::vector<Person> incoming;  // asked me, waiting for my answer
+  std::vector<Person> outgoing;  // asked by me, waiting for theirs
+};
+
+struct FriendsResult : ActionResult {
+  FriendsOverview overview;
+};
+
+std::optional<FriendsOverview> ParseFriends(std::string_view json);
+FriendsResult FetchFriends(HttpTransport& transport, const std::string& base_url, const std::string& token);
 
 enum class FetchKind { kUpdated, kUnchanged, kRejected, kFailed };
 
@@ -135,8 +164,8 @@ class BoardCache {
   std::thread worker_;
 };
 
-// The game's leaderboard queries, answered from the friends' boards. Without boards (not fetched yet, no
-// connection) the player's own offline board answers, as before.
+// The game's leaderboard queries: the global board for the overall view, the accepted friends for the Friends board.
+// Without boards (not fetched yet, no connection) the player's own offline board answers, as before.
 class RemoteLeaderboard final : public live::BoardSource {
  public:
   using OwnBest = std::function<std::optional<int64_t>(uint32_t view)>;
@@ -151,7 +180,7 @@ class RemoteLeaderboard final : public live::BoardSource {
   std::vector<live::FriendInfo> Friends() const override;
 
  private:
-  live::StatsView Combined(uint32_t view, const BoardsSnapshot& boards) const;
+  OwnPlayer Own(uint32_t view, const BoardsSnapshot& boards) const;
 
   const live::LocalLeaderboard& local_;
   const BoardCache& cache_;

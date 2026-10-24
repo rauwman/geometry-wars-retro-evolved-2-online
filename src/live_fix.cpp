@@ -29,11 +29,13 @@ constexpr uint32_t kInputStateGamepadSize = 12;
 constexpr uint32_t kThumbLeftYOffset = 6;
 
 struct Services {
-  Services(std::filesystem::path file, std::filesystem::path online_file, LocalUser user)
-      : stats(std::move(file)), clean(std::move(online_file)), board(stats, std::move(user)) {}
+  Services(std::filesystem::path file, LocalUser user) : stats(std::move(file)), board(stats, std::move(user)) {}
 
   LocalStats stats;
-  LocalStats clean;  // the scores the server may see: none earned with a cheat in effect
+  // The scores the server may see: only games finished in this run while signed in, none with a cheat in effect. It
+  // lives in memory and starts empty, so nothing from before the account, from offline play or from an edited save
+  // reaches the server.
+  LocalStats clean;
   std::atomic<online::OnlineClient*> client{nullptr};  // set once by ConfigureOnline, never freed
   std::atomic<online::BoardCache*> cache{nullptr};      // the friends' boards, likewise
   std::atomic<const BoardSource*> source{nullptr};      // what answers the game's leaderboard queries
@@ -121,8 +123,7 @@ void Install(InstallParams params) {
     REXLOG_INFO("Local Live services are disabled (gw2_local_live=false)");
     return;
   }
-  auto* services =
-      new Services(std::move(params.stats_file), std::move(params.online_scores_file), std::move(params.user));
+  auto* services = new Services(std::move(params.stats_file), std::move(params.user));
   const LoadResult loaded = services->stats.Load();
   REXLOG_INFO("Local Live services ready, stats file {}",
               loaded == LoadResult::kLoaded    ? "loaded"
@@ -143,10 +144,6 @@ void ConfigureOnline(const OnlineParams& params) {
     return;
   }
   const uint64_t xuid = services->board.user().xuid;
-  // Scores from before the account existed carry no record of cheats; they are taken once, as they are.
-  if (services->clean.Load() == LoadResult::kMissing) {
-    for (const auto& [view, score] : services->stats.BestAll(xuid)) services->clean.Record(xuid, view, score);
-  }
   const auto log = [](const std::string& line) { REXLOG_INFO("Online: {}", line); };
   auto* cache = new online::BoardCache({url, params.token}, online::MakeSystemTransport(), log);
   auto* remote = new online::RemoteLeaderboard(

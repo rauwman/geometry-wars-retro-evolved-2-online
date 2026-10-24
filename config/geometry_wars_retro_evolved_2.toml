@@ -11,7 +11,7 @@ monitor = 1
 window_width = 1280
 window_height = 720
 
-# Friends leaderboard (docs/online.md). A release for friends sets the server address and invite code here; players
-# then pick their online name in the launcher's Online page. Empty means the game stays fully offline.
+# Global leaderboard (docs/online.md). Players pick their online name in the launcher's Online page; the server comes with
+# the game. gw2_online_url overrides it (testing only). gw2_online_invite is no longer used and stays empty.
 gw2_online_url = ""
 gw2_online_invite = ""

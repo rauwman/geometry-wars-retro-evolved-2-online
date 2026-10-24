@@ -6,8 +6,9 @@
 namespace gw2 {
 
 // The first data members of ReXGlue 0.10.0's rex::system::xam::UserProfile (xuid_, then name_), which has no setter.
-// The game reads the name through XamUserGetName, XamUserGetGamerTag and XUserGetInfo, and the file names of the saves
-// do not use it, so replacing it changes what the game shows and nothing else.
+// The game reads the name through XamUserGetName, XamUserGetGamerTag and XUserGetInfo. The runtime also names the
+// folder of the profile data after it (profile/<name>/...), so a changed name needs profile_sync.h to carry the
+// progress over.
 struct ProfileLayout {
   uint64_t xuid;
   std::string name;

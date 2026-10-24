@@ -51,6 +51,11 @@ class FakeTransport final : public HttpTransport {
     return handler_(request, call);
   }
 
+  std::vector<HttpRequest> Requests() const {
+    std::lock_guard lock(*mutex_);
+    return *log_;
+  }
+
  private:
   Handler handler_;
   std::shared_ptr<std::vector<HttpRequest>> log_;
@@ -67,13 +72,40 @@ static HttpResponse Answer(int status, std::string body = {}, std::string etag =
 
 static const char kBoards[] = R"({
   "revision": 7, "me": "E000000000000002",
+  "friends": [{"xuid": "E000000000000001", "name": "Anna"}, {"xuid": "E000000000000002", "name": "Yann R"},
+              {"xuid": "E000000000000004", "name": "Cy"}],
   "views": {
     "0": {"total": 3, "rows": [
       {"rank": 1, "xuid": "E000000000000001", "name": "Anna", "score": 900},
       {"rank": 2, "xuid": "E000000000000002", "name": "Yann R", "score": 500},
-      {"rank": 3, "xuid": "E000000000000003", "name": "Ben ä", "score": 100}]},
+      {"rank": 3, "xuid": "E000000000000003", "name": "Ben ä", "score": 100}],
+      "friends": [
+      {"rank": 1, "xuid": "E000000000000001", "name": "Anna", "score": 900},
+      {"rank": 2, "xuid": "E000000000000002", "name": "Yann R", "score": 500}]},
     "1": {"total": 0, "rows": []},
     "9": {"total": 1, "rows": [{"rank": 1, "xuid": "E000000000000001", "name": "Anna", "score": 5}]}
+  }})";
+
+// The player (E...02) is far down the global board: the top rows, their own place and the rows around it.
+static const char kBoardsDeep[] = R"({
+  "revision": 9, "me": "E000000000000002",
+  "friends": [{"xuid": "E000000000000001", "name": "Anna"}],
+  "views": {
+    "0": {"total": 250,
+      "rows": [
+        {"rank": 1, "xuid": "E000000000000001", "name": "Anna", "score": 900},
+        {"rank": 2, "xuid": "E000000000000010", "name": "Ben", "score": 800},
+        {"rank": 3, "xuid": "E000000000000011", "name": "Cy", "score": 700}],
+      "mine": {"rank": 120, "score": 50},
+      "around": [
+        {"rank": 118, "xuid": "E000000000000020", "name": "P118", "score": 60},
+        {"rank": 119, "xuid": "E000000000000021", "name": "P119", "score": 55},
+        {"rank": 120, "xuid": "E000000000000002", "name": "Yann R", "score": 50},
+        {"rank": 121, "xuid": "E000000000000022", "name": "P121", "score": 45},
+        {"rank": 122, "xuid": "E000000000000023", "name": "P122", "score": 40}],
+      "friends": [
+        {"rank": 1, "xuid": "E000000000000001", "name": "Anna", "score": 900},
+        {"rank": 2, "xuid": "E000000000000002", "name": "Yann R", "score": 50}]}
   }})";
 
 static void TestJson() {
@@ -149,6 +181,91 @@ static void TestCombined() {
         "a tie is ranked behind the earlier score");
   all = CombinedView(3, nullptr, OwnPlayer{"E1", own.local_xuid, "Yann R", std::nullopt});
   Check(all.rows.empty() && all.total_rows == 0, "no board and no score: nothing");
+}
+
+static void TestDeepAndFriends() {
+  Section("global board below the top, friends board");
+  const auto b = ParseBoards(kBoardsDeep);
+  Check(b && b->views.at(0).mine && b->views.at(0).mine->rank == 120 && b->views.at(0).around.size() == 5 &&
+            b->views.at(0).friends.size() == 2 && b->friends.size() == 1,
+        "mine, around, friends and the friend list are read");
+  const auto first = ParseBoards(kBoards);
+  Check(first && !first->views.at(1).mine && first->views.at(1).around.empty() && first->views.at(1).friends.empty(),
+        "an answer without mine and around is fine");
+  const auto old = ParseBoards(R"({"views":{"0":{"total":1,"rows":[{"xuid":"E1","name":"A","score":5}]}}})");
+  Check(old && old->friends.empty() && old->views.at(0).rows[0].rank == 0, "the first version's answer still parses");
+  const auto bad = ParseBoards(R"({"views":{"0":{"total":1,"rows":[],"around":"x","friends":[{"xuid":1}]}}})");
+  Check(bad && bad->views.at(0).around.empty() && bad->views.at(0).friends.empty(),
+        "malformed extras are ignored, not fatal");
+
+  OwnPlayer own{"E000000000000002", 0xB13EBABEBABEBABEull, "Yann R", std::nullopt};
+  auto all = CombinedView(0, &b->views.at(0), own);
+  Check(all.rows.size() == 8 && all.total_rows == 250, "top rows plus the rows around the player");
+  Check(all.rows[3].rank == 118 && all.rows[5].rank == 120 && all.rows[5].xuid == own.local_xuid &&
+            all.rows[5].gamertag == "Yann R" && all.rows[5].rating == 50,
+        "the player keeps the server's rank, under the game's own id");
+  own.best = 70;
+  all = CombinedView(0, &b->views.at(0), own);
+  Check(all.rows[5].rank == 120 && all.rows[5].rating == 70, "a better local score shows without moving the rank");
+
+  const live::StatsView around = AroundWindow(all, own.local_xuid, 3);
+  Check(around.rows.size() == 3 && around.rows[0].rank == 119 && around.rows[1].rank == 120 && around.rows[2].rank == 121,
+        "'my score' is the player with a row above and below");
+  const live::StatsView top = RankedWindow(all, 1, 2);
+  Check(top.rows.size() == 2 && top.rows[0].rank == 1 && top.rows[1].rank == 2, "the top of the board");
+  const live::StatsView later = RankedWindow(all, 100, 10);
+  Check(later.rows.size() == 5 && later.rows[0].rank == 118, "a window past the top rows starts at the rows that exist");
+
+  // The rows around the player may start inside the top rows: nobody is listed twice.
+  const auto overlap = ParseBoards(R"({"me":"E000000000000002","views":{"0":{"total":50,
+    "rows":[{"rank":1,"xuid":"E000000000000001","name":"Anna","score":900},
+            {"rank":2,"xuid":"E000000000000010","name":"Ben","score":800},
+            {"rank":3,"xuid":"E000000000000011","name":"Cy","score":700}],
+    "mine":{"rank":5,"score":500},
+    "around":[{"rank":3,"xuid":"E000000000000011","name":"Cy","score":700},
+              {"rank":4,"xuid":"E000000000000012","name":"Di","score":600},
+              {"rank":5,"xuid":"E000000000000002","name":"Yann R","score":500},
+              {"rank":6,"xuid":"E000000000000013","name":"Ed","score":400}]}}})");
+  const live::StatsView overlapped = CombinedView(0, &overlap->views.at(0), OwnPlayer{"E000000000000002", own.local_xuid, "Yann R", std::nullopt});
+  bool unique = overlapped.rows.size() == 6;
+  for (size_t i = 0; i < overlapped.rows.size(); ++i) unique = unique && overlapped.rows[i].rank == i + 1;
+  Check(unique && overlapped.rows[4].xuid == own.local_xuid, "overlapping rows are listed once, in rank order");
+
+  const live::StatsView friends = FriendsView(0, &b->views.at(0), own);
+  Check(friends.rows.size() == 2 && friends.total_rows == 2 && friends.rows[0].gamertag == "Anna" &&
+            friends.rows[1].rank == 2 && friends.rows[1].xuid == own.local_xuid && friends.rows[1].rating == 70,
+        "the friends board: the friends and the player, ranked among themselves");
+  const live::StatsView none = FriendsView(0, nullptr, OwnPlayer{"E1", own.local_xuid, "Yann R", 30});
+  Check(none.rows.size() == 1 && none.rows[0].rank == 1 && none.rows[0].rating == 30,
+        "without friends the player is alone on the friends board");
+}
+
+static void TestFriendsOverview() {
+  Section("friends overview");
+  const auto ok = ParseFriends(R"({
+    "friends":[{"xuid":"E000000000000001","name":"Anna"}],
+    "incoming":[{"xuid":"E000000000000003","name":"Ben"},{"xuid":"E000000000000004","name":"Cy"}],
+    "outgoing":[]})");
+  Check(ok && ok->friends.size() == 1 && ok->incoming.size() == 2 && ok->incoming[1].name == "Cy" &&
+            ok->outgoing.empty(),
+        "friends and requests");
+  Check(!ParseFriends("{}") && !ParseFriends("nonsense") && !ParseFriends(R"({"friends":[],"incoming":[]})"),
+        "an answer that is not the overview");
+
+  FakeTransport good([](const HttpRequest&, int) {
+    return Answer(200, R"({"friends":[],"incoming":[],"outgoing":[]})");
+  });
+  FriendsResult r = FetchFriends(good, "https://s", "tok");
+  const auto sent = good.Requests();
+  Check(r.ok() && r.overview.friends.empty() && sent.size() == 1 && sent[0].method == "GET" &&
+            sent[0].url == "https://s/v1/friends" && sent[0].bearer == "tok",
+        "GET /v1/friends with the account key");
+  FakeTransport refused([](const HttpRequest&, int) { return Answer(401); });
+  Check(FetchFriends(refused, "https://s", "tok").error == AccountError::kBadToken, "an unknown account");
+  FakeTransport down([](const HttpRequest&, int) { return Answer(0); });
+  Check(FetchFriends(down, "https://s", "tok").error == AccountError::kUnreachable, "no connection");
+  FakeTransport odd([](const HttpRequest&, int) { return Answer(200, "<html>"); });
+  Check(FetchFriends(odd, "https://s", "tok").error == AccountError::kServer, "an answer that is not the API");
 }
 
 static live::StatsView Ten() {
@@ -282,7 +399,7 @@ static void TestLeaderboard() {
   live::StatsView v = board.Ranked(0, 1, 10);
   Check(v.rows.size() == 3 && v.rows[0].gamertag == "Anna" && v.rows[1].gamertag == "Yann R" && v.rows[1].rating == 500 &&
             v.rows[1].xuid == kLocal && v.total_rows == 3,
-        "the friends' board, with the player's own row under the game's id");
+        "the global board, with the player's own row under the game's id");
   stats.Record(kLocal, 0, 2000);
   v = board.Ranked(0, 1, 10);
   Check(v.rows[0].gamertag == "Yann R" && v.rows[0].rating == 2000, "a new local best shows at once, before the upload");
@@ -296,14 +413,24 @@ static void TestLeaderboard() {
   Check(v.rows.size() == 1 && v.rows[0].rating == 2000 && v.rows[0].xuid == kLocal,
         "the player's own stats: one row, local id");
   const auto friends = board.Friends();
-  Check(friends.size() == 2 && friends[0].name == "Anna", "the other server players are the friends");
+  Check(friends.size() == 2 && friends[0].name == "Anna" && friends[1].name == "Cy",
+        "the accepted friends are the friends, not every player on the server");
   v = board.Selected(0, {kLocal, friends[0].xuid});
   Check(v.rows.size() == 2 && v.rows[0].xuid == kLocal && v.rows[0].rank == 1 && v.rows[1].gamertag == "Anna" && v.rows[1].rank == 2,
-        "a read for the player and a friend returns both, ranked as on the board");
+        "a read for the player and a friend returns both, ranked among the friends");
   v = board.Selected(2, {kLocal});
   Check(v.rows.size() == 1 && v.rows[0].xuid == kLocal, "a view nobody played still gets the player's own row");
   v = board.Selected(0, {12345});
   Check(v.rows.empty(), "a stranger has no row");
+
+  // A score from offline play stays out of the online boards: the player's row is unranked and zero.
+  stats.Record(kLocal, 2, 777);
+  RemoteLeaderboard online_only(local, cache, "Yann R", [](uint32_t) { return std::optional<int64_t>(); });
+  v = online_only.Selected(2, {kLocal});
+  Check(v.rows.size() == 1 && v.rows[0].xuid == kLocal && v.rows[0].rank == 0 && v.rows[0].rating == 0,
+        "a score only on this PC is not on the friends board: unranked, zero");
+  v = online_only.Selected(2, {12345});
+  Check(v.rows.empty(), "a read that does not ask for the player gets no row of theirs");
   fs::remove_all(dir);
 }
 
@@ -346,6 +473,8 @@ int main() {
   TestJson();
   TestParseBoards();
   TestCombined();
+  TestDeepAndFriends();
+  TestFriendsOverview();
   TestWindows();
   TestFetch();
   TestCache();

@@ -31,6 +31,7 @@
 #include "launcher_settings.h"
 #include "live_fix.h"
 #include "profile_name.h"
+#include "profile_sync.h"
 #include "log_filter.h"
 #include "log_path.h"
 #include "rumble.h"
@@ -235,9 +236,6 @@ class GeometryWarsRetroEvolved2App : public rex::ReXApp {
     if (!profile) return;
     gw2::live::Install({
         .stats_file = gw2::StatsFilePath(std::filesystem::absolute(user_data_root()), kernel->title_id()),
-        .online_scores_file =
-            gw2::StatsFilePath(std::filesystem::absolute(user_data_root()), kernel->title_id()).parent_path() /
-            "online_scores.toml",
         .user = {profile->xuid(), profile->name()},
         .bridge = {
             .open_achievements = [this] { app_context().CallInUIThreadDeferred([this] { OpenAchievements(); }); },
@@ -316,7 +314,7 @@ class GeometryWarsRetroEvolved2App : public rex::ReXApp {
     startup_window.output_height = drawable.height;
     startup_window.controller = gw2::ControllerSummary();
     gw2::LogStartupDiagnostics(gw2::MonitorForSetting(monitor), monitor, game_data_root(), startup_window);
-    gw2::live::ConfigureOnline({settings_->Get(gw2::kOnlineUrlKey), settings_->Get(gw2::kOnlineTokenKey),
+    gw2::live::ConfigureOnline({settings_->Get(gw2::kOnlineUrlKey, gw2::kDefaultOnlineUrl), settings_->Get(gw2::kOnlineTokenKey),
                                 settings_->Get(gw2::kOnlineNameKey)});
     ShowOnlineNameInGame();
     InstallCheatMenu();
@@ -332,6 +330,17 @@ class GeometryWarsRetroEvolved2App : public rex::ReXApp {
     }
     auto* kernel = runtime() ? runtime()->kernel_state() : nullptr;
     const auto* profile = kernel ? kernel->user_profile() : nullptr;
+    // The runtime keeps the game's progress in a folder named after the profile. Before the name changes, the folder
+    // of the new name receives the newest progress of any name, so a new or renamed account keeps playing where
+    // this installation left off.
+    if (kernel) {
+      // <user data>/<title id>/profile, next to the <title id>/live folder of the scores.
+      const auto profile_root =
+          gw2::StatsFilePath(std::filesystem::absolute(user_data_root()), kernel->title_id()).parent_path().parent_path() /
+          "profile";
+      const int shared = gw2::SharePlayerProgress(profile_root, name);
+      if (shared > 0) REXLOG_INFO("Online: the game's progress was carried over to \"{}\" ({} file(s))", name, shared);
+    }
     if (!gw2::SetProfileName(profile, name)) {
       REXLOG_WARN("Online: the game's profile name could not be changed to \"{}\"", name);
     }

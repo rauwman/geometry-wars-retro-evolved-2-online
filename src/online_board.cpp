@@ -190,6 +190,47 @@ std::optional<JsonValue> ParseJson(std::string_view text) {
   return JsonReader(text).Parse();
 }
 
+namespace {
+
+uint32_t ClampRank(int64_t value) {
+  return value > 0 ? static_cast<uint32_t>(std::min<int64_t>(value, UINT32_MAX)) : 0;
+}
+
+// An array of {xuid, name, score[, rank]}. False when it is not that.
+bool ParseRows(const JsonValue& rows, std::vector<BoardRow>& out) {
+  if (rows.type != JsonValue::Type::kArray) return false;
+  for (const JsonValue& row : rows.items) {
+    const JsonValue* xuid = row.Find("xuid");
+    const JsonValue* name = row.Find("name");
+    const JsonValue* score = row.Find("score");
+    if (row.type != JsonValue::Type::kObject || !xuid || !name || !score || xuid->type != JsonValue::Type::kString ||
+        name->type != JsonValue::Type::kString || score->type != JsonValue::Type::kNumber || score->number <= 0) {
+      return false;
+    }
+    const JsonValue* rank = row.Find("rank");
+    out.push_back({xuid->text, name->text, score->number,
+                   rank && rank->type == JsonValue::Type::kNumber ? ClampRank(rank->number) : 0});
+  }
+  return true;
+}
+
+// An array of {xuid, name}. False when it is not that.
+bool ParsePeople(const JsonValue* list, std::vector<Person>& out) {
+  if (!list || list->type != JsonValue::Type::kArray) return false;
+  for (const JsonValue& item : list->items) {
+    const JsonValue* xuid = item.Find("xuid");
+    const JsonValue* name = item.Find("name");
+    if (item.type != JsonValue::Type::kObject || !xuid || !name || xuid->type != JsonValue::Type::kString ||
+        name->type != JsonValue::Type::kString) {
+      return false;
+    }
+    out.push_back({xuid->text, name->text});
+  }
+  return true;
+}
+
+}  // namespace
+
 std::optional<BoardsSnapshot> ParseBoards(std::string_view json) {
   const auto root = ParseJson(json);
   if (!root || root->type != JsonValue::Type::kObject) return std::nullopt;
@@ -201,6 +242,7 @@ std::optional<BoardsSnapshot> ParseBoards(std::string_view json) {
     out.revision = revision->number;
   }
   if (const JsonValue* me = root->Find("me"); me && me->type == JsonValue::Type::kString) out.me = me->text;
+  if (const JsonValue* friends = root->Find("friends"); !ParsePeople(friends, out.friends)) out.friends.clear();
 
   for (size_t member = 0; member < views->member_names.size(); ++member) {
     const std::string& key = views->member_names[member];
@@ -219,16 +261,19 @@ std::optional<BoardsSnapshot> ParseBoards(std::string_view json) {
       parsed.total = static_cast<uint32_t>(std::min<int64_t>(total->number, UINT32_MAX));
     }
     const JsonValue* rows = board.Find("rows");
-    if (!rows || rows->type != JsonValue::Type::kArray) return std::nullopt;
-    for (const JsonValue& row : rows->items) {
-      const JsonValue* xuid = row.Find("xuid");
-      const JsonValue* name = row.Find("name");
-      const JsonValue* score = row.Find("score");
-      if (row.type != JsonValue::Type::kObject || !xuid || !name || !score || xuid->type != JsonValue::Type::kString ||
-          name->type != JsonValue::Type::kString || score->type != JsonValue::Type::kNumber || score->number <= 0) {
-        return std::nullopt;
+    if (!rows || !ParseRows(*rows, parsed.rows)) return std::nullopt;
+    // The next three are newer than the first version of the API: absent or malformed means "none".
+    if (const JsonValue* mine = board.Find("mine"); mine && mine->type == JsonValue::Type::kObject) {
+      const JsonValue* rank = mine->Find("rank");
+      const JsonValue* score = mine->Find("score");
+      if (rank && score && rank->type == JsonValue::Type::kNumber && score->type == JsonValue::Type::kNumber &&
+          rank->number > 0 && score->number > 0) {
+        parsed.mine = OwnRank{static_cast<uint32_t>(std::min<int64_t>(rank->number, UINT32_MAX)), score->number};
       }
-      parsed.rows.push_back({xuid->text, name->text, score->number});
+    }
+    if (const JsonValue* around = board.Find("around"); around && !ParseRows(*around, parsed.around)) parsed.around.clear();
+    if (const JsonValue* friends = board.Find("friends"); friends && !ParseRows(*friends, parsed.friends)) {
+      parsed.friends.clear();
     }
     out.views[id] = std::move(parsed);
   }
@@ -248,42 +293,85 @@ uint64_t XuidFromHex(std::string_view hex) {
   return value;
 }
 
-live::StatsView CombinedView(uint32_t view, const ServerBoard* board, const OwnPlayer& own) {
-  struct Entry {
-    uint64_t xuid;
-    std::string name;
-    int64_t score;
-  };
+namespace {
+
+struct Entry {
+  uint64_t xuid;
+  std::string name;
+  int64_t score;
+  uint32_t rank;  // the server's rank, 0 when the entry is ranked here
+};
+
+// The rows of one list as the game shows them: the player's own row under the game's id, with the better of the
+// server's score and the one on this PC, ranked from 1 by score.
+live::StatsView MergeOwn(uint32_t view, const std::vector<BoardRow>& rows, uint32_t total, const OwnPlayer& own) {
   std::vector<Entry> entries;
   bool own_listed = false;
-  uint32_t total = 0;
-  if (board) {
-    total = board->total;
-    for (const BoardRow& row : board->rows) {
-      if (!own.server_xuid.empty() && row.xuid == own.server_xuid) {
-        own_listed = true;
-        const int64_t score = own.best ? std::max(*own.best, row.score) : row.score;
-        entries.push_back({own.local_xuid, own.name.empty() ? row.name : own.name, score});
-      } else {
-        entries.push_back({XuidFromHex(row.xuid), row.name, row.score});
-      }
+  for (const BoardRow& row : rows) {
+    if (!own.server_xuid.empty() && row.xuid == own.server_xuid) {
+      own_listed = true;
+      const int64_t score = own.best ? std::max(*own.best, row.score) : row.score;
+      entries.push_back({own.local_xuid, own.name.empty() ? row.name : own.name, score, 0});
+    } else {
+      entries.push_back({XuidFromHex(row.xuid), row.name, row.score, 0});
     }
   }
   if (!own_listed && own.best && *own.best > 0) {
-    entries.push_back({own.local_xuid, own.name, *own.best});
+    entries.push_back({own.local_xuid, own.name, *own.best, 0});
     ++total;
   }
-  std::stable_sort(entries.begin(), entries.end(),
-                   [](const Entry& a, const Entry& b) { return a.score > b.score; });
+  std::stable_sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) { return a.score > b.score; });
 
   live::StatsView out;
   out.id = view;
   out.total_rows = std::max<uint32_t>(total, static_cast<uint32_t>(entries.size()));
   uint32_t rank = 1;
-  for (Entry& entry : entries) {
-    out.rows.push_back({entry.xuid, rank++, entry.score, std::move(entry.name)});
-  }
+  for (Entry& entry : entries) out.rows.push_back({entry.xuid, rank++, entry.score, std::move(entry.name)});
   return out;
+}
+
+}  // namespace
+
+live::StatsView CombinedView(uint32_t view, const ServerBoard* board, const OwnPlayer& own) {
+  if (!board) return MergeOwn(view, {}, 0, own);
+  const bool in_top = !own.server_xuid.empty() &&
+                      std::any_of(board->rows.begin(), board->rows.end(),
+                                  [&](const BoardRow& row) { return row.xuid == own.server_xuid; });
+  if (in_top || !board->mine) return MergeOwn(view, board->rows, board->total, own);
+
+  // Below the top rows: the server's ranks stay, the player's row sits at their place among the rows around them.
+  std::vector<Entry> entries;
+  for (size_t i = 0; i < board->rows.size(); ++i) {
+    const BoardRow& row = board->rows[i];
+    entries.push_back({XuidFromHex(row.xuid), row.name, row.score, row.rank ? row.rank : static_cast<uint32_t>(i + 1)});
+  }
+  uint32_t top_rank = 0;
+  for (const Entry& entry : entries) top_rank = std::max(top_rank, entry.rank);
+  const int64_t own_score = own.best ? std::max(*own.best, board->mine->score) : board->mine->score;
+  bool own_added = false;
+  for (const BoardRow& row : board->around) {
+    if (row.rank == 0) continue;
+    if (!own.server_xuid.empty() && row.xuid == own.server_xuid) {
+      entries.push_back({own.local_xuid, own.name.empty() ? row.name : own.name, own_score, board->mine->rank});
+      own_added = true;
+    } else if (row.rank > top_rank) {  // not one of the top rows already
+      entries.push_back({XuidFromHex(row.xuid), row.name, row.score, row.rank});
+    }
+  }
+  if (!own_added) entries.push_back({own.local_xuid, own.name, own_score, board->mine->rank});
+  std::stable_sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) { return a.rank < b.rank; });
+
+  live::StatsView out;
+  out.id = view;
+  out.total_rows = std::max<uint32_t>(board->total, entries.empty() ? 0 : entries.back().rank);
+  for (Entry& entry : entries) out.rows.push_back({entry.xuid, entry.rank, entry.score, std::move(entry.name)});
+  return out;
+}
+
+live::StatsView FriendsView(uint32_t view, const ServerBoard* board, const OwnPlayer& own) {
+  const std::vector<BoardRow> none;
+  const std::vector<BoardRow>& rows = board ? board->friends : none;
+  return MergeOwn(view, rows, static_cast<uint32_t>(rows.size()), own);
 }
 
 live::StatsView RankedWindow(const live::StatsView& all, uint32_t first_rank, uint32_t max_rows) {
@@ -314,6 +402,43 @@ live::StatsView AroundWindow(const live::StatsView& all, uint64_t local_xuid, ui
   const uint32_t before = max_rows / 2;
   const uint32_t first = own_rank > before ? own_rank - before : 1;
   return RankedWindow(all, first, max_rows);
+}
+
+std::optional<FriendsOverview> ParseFriends(std::string_view json) {
+  const auto root = ParseJson(json);
+  if (!root || root->type != JsonValue::Type::kObject) return std::nullopt;
+  FriendsOverview out;
+  if (!ParsePeople(root->Find("friends"), out.friends) || !ParsePeople(root->Find("incoming"), out.incoming) ||
+      !ParsePeople(root->Find("outgoing"), out.outgoing)) {
+    return std::nullopt;
+  }
+  return out;
+}
+
+FriendsResult FetchFriends(HttpTransport& transport, const std::string& base_url, const std::string& token) {
+  HttpRequest request;
+  request.method = "GET";
+  request.url = base_url + "/v1/friends";
+  request.bearer = token;
+  const HttpResponse response = transport.Send(request);
+
+  FriendsResult result;
+  switch (response.status) {
+    case 200:
+      if (auto parsed = ParseFriends(response.body)) {
+        result.error = AccountError::kNone;
+        result.overview = std::move(*parsed);
+        return result;
+      }
+      result.error = AccountError::kServer;
+      break;
+    case 0: result.error = AccountError::kUnreachable; break;
+    case 401: result.error = AccountError::kBadToken; break;
+    case 429: result.error = AccountError::kRateLimited; break;
+    default: result.error = AccountError::kServer; break;
+  }
+  result.message = DescribeError(result.error);
+  return result;
 }
 
 FetchResult FetchBoards(HttpTransport& transport, const std::string& base_url, const std::string& token,
@@ -429,20 +554,21 @@ void BoardCache::Run() {
   }
 }
 
-live::StatsView RemoteLeaderboard::Combined(uint32_t view, const BoardsSnapshot& boards) const {
+OwnPlayer RemoteLeaderboard::Own(uint32_t view, const BoardsSnapshot& boards) const {
   OwnPlayer own;
   own.server_xuid = boards.me;
   own.local_xuid = local_.user().xuid;
   own.name = name_;
   if (own_best_) own.best = own_best_(view);
-  const auto it = boards.views.find(view);
-  return CombinedView(view, it == boards.views.end() ? nullptr : &it->second, own);
+  return own;
 }
 
 live::StatsView RemoteLeaderboard::Ranked(uint32_t view, uint32_t first_rank, uint32_t max_rows) const {
   const auto boards = cache_.Snapshot();
   if (!boards) return local_.Ranked(view, first_rank, max_rows);
-  return RankedWindow(Combined(view, *boards), first_rank, max_rows);
+  const auto it = boards->views.find(view);
+  return RankedWindow(CombinedView(view, it == boards->views.end() ? nullptr : &it->second, Own(view, *boards)),
+                      first_rank, max_rows);
 }
 
 live::StatsView RemoteLeaderboard::Around(uint32_t view, uint64_t xuid, uint32_t max_rows) const {
@@ -453,11 +579,13 @@ live::StatsView RemoteLeaderboard::Around(uint32_t view, uint64_t xuid, uint32_t
     empty.id = view;
     return empty;
   }
-  return AroundWindow(Combined(view, *boards), xuid, max_rows);
+  const auto it = boards->views.find(view);
+  return AroundWindow(CombinedView(view, it == boards->views.end() ? nullptr : &it->second, Own(view, *boards)), xuid,
+                      max_rows);
 }
 
-// "Friends" are the server's other players. Their ids are the ones the combined boards give them, so a stats read
-// for them finds their rows.
+// The friends are the players who accepted a request, and nobody else. Their ids are the ones the boards give them, so
+// a stats read for them finds their rows.
 std::vector<live::FriendInfo> RemoteLeaderboard::Friends() const {
   std::vector<live::FriendInfo> friends;
   auto boards = cache_.Snapshot();
@@ -467,14 +595,11 @@ std::vector<live::FriendInfo> RemoteLeaderboard::Friends() const {
     boards = cache_.Snapshot();
   }
   if (!boards) return friends;
-  for (const auto& [id, board] : boards->views) {
-    for (const BoardRow& row : board.rows) {
-      if (row.xuid.empty() || row.xuid == boards->me) continue;
-      const uint64_t xuid = XuidFromHex(row.xuid);
-      const bool known = std::any_of(friends.begin(), friends.end(),
-                                     [&](const live::FriendInfo& f) { return f.xuid == xuid; });
-      if (!known) friends.push_back({xuid, row.name});
-    }
+  for (const Person& person : boards->friends) {
+    if (person.xuid.empty() || person.xuid == boards->me) continue;
+    const uint64_t xuid = XuidFromHex(person.xuid);
+    if (xuid == 0) continue;
+    friends.push_back({xuid, person.name});
   }
   std::sort(friends.begin(), friends.end(),
             [](const live::FriendInfo& a, const live::FriendInfo& b) { return a.name < b.name; });
@@ -482,24 +607,25 @@ std::vector<live::FriendInfo> RemoteLeaderboard::Friends() const {
   return friends;
 }
 
-// A read for specific players: their rows from the combined board, ranked as there. Players with no score in the
+// A read for specific players, the Friends board: their rows, ranked among the friends and the player. Players with no score in the
 // view have no row.
 live::StatsView RemoteLeaderboard::Selected(uint32_t view, const std::vector<uint64_t>& xuids) const {
   const auto boards = cache_.Snapshot();
   if (!boards) return local_.Selected(view, xuids);
-  live::StatsView all = Combined(view, *boards);
+  const auto it = boards->views.find(view);
+  live::StatsView all = FriendsView(view, it == boards->views.end() ? nullptr : &it->second, Own(view, *boards));
   live::StatsView out;
   out.id = view;
   out.total_rows = all.total_rows;
   for (const live::StatsRow& row : all.rows) {
     if (std::find(xuids.begin(), xuids.end(), row.xuid) != xuids.end()) out.rows.push_back(row);
   }
-  // Never played: the game still gets the player's own (unranked, zero) row, as offline.
+  // No online score: the game still gets the player's own row, unranked and zero. A score from offline play on this PC
+  // is not shown here: only what the server knows (or what was played online in this run) counts.
   const uint64_t self = local_.user().xuid;
+  const bool asked_for_self = std::find(xuids.begin(), xuids.end(), self) != xuids.end();
   const bool has_self = std::any_of(out.rows.begin(), out.rows.end(), [&](const live::StatsRow& r) { return r.xuid == self; });
-  if (!has_self) {
-    for (live::StatsRow& row : local_.Selected(view, xuids).rows) out.rows.push_back(std::move(row));
-  }
+  if (asked_for_self && !has_self) out.rows.push_back({self, 0, 0, local_.user().name});
   return out;
 }
 

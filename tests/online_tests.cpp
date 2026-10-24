@@ -170,19 +170,18 @@ static void TestRegister() {
   FakeTransport ok([](const HttpRequest&, int) {
     return Answer(201, R"({"xuid":"E00014A12C71D845","name":"Yann R","token":"tok-123"})");
   });
-  RegisterResult r = Register(ok, "https://s", "Yann R", "se\"cret");
+  RegisterResult r = Register(ok, "https://s", "Yann R");
   Check(r.ok() && r.account.token == "tok-123" && r.account.name == "Yann R" && r.account.xuid == "E00014A12C71D845",
         "success returns the account");
   const auto sent = ok.Requests();
   Check(sent.size() == 1 && sent[0].method == "POST" && sent[0].url == "https://s/v1/register" &&
-            sent[0].body == R"({"name":"Yann R","invite":"se\"cret"})" && sent[0].bearer.empty(),
-        "POST with name and escaped invite code, no token");
+            sent[0].body == R"({"name":"Yann R"})" && sent[0].bearer.empty(),
+        "POST with the name only: no invite code, no token");
 
   const auto fails = [](int status, std::string body = {}) {
     FakeTransport t([=](const HttpRequest&, int) { return Answer(status, body); });
-    return Register(t, "https://s", "Yann", "code");
+    return Register(t, "https://s", "Yann");
   };
-  Check(fails(403, R"({"detail":"Wrong invite code"})").error == AccountError::kWrongInvite, "wrong invite code");
   Check(fails(403, R"({"detail":"Registration is closed"})").error == AccountError::kClosed, "registration closed");
   Check(fails(409).error == AccountError::kNameTaken, "name taken");
   r = fails(422, R"({"detail":"Start with a letter or a digit."})");
@@ -201,8 +200,93 @@ static void TestRegister() {
     ++calls;
     return Answer(201);
   });
-  r = Register(none, "https://s", "Bad/Name", "code");
+  r = Register(none, "https://s", "Bad/Name");
   Check(r.error == AccountError::kInvalidName && calls == 0, "a bad name never reaches the server");
+}
+
+static void TestFriends() {
+  Section("friend requests");
+  FakeTransport sent_ok([](const HttpRequest&, int) {
+    return Answer(201, R"({"status":"sent","xuid":"E000000000000003","name":"Ben"})");
+  });
+  FriendRequestResult r = SendFriendRequest(sent_ok, "https://s", "tok", "Ben");
+  auto sent = sent_ok.Requests();
+  Check(r.ok() && !r.friends && r.person.name == "Ben" && r.person.xuid == "E000000000000003" && sent.size() == 1 &&
+            sent[0].method == "POST" && sent[0].url == "https://s/v1/friends/request" && sent[0].bearer == "tok" &&
+            sent[0].body == R"({"to":"Ben"})",
+        "a request sends the name and names the player");
+  FakeTransport by_name([](const HttpRequest&, int) {
+    return Answer(201, R"({"status":"sent","xuid":"E000000000000003","name":"Ben \"B\""})");
+  });
+  r = SendFriendRequest(by_name, "https://s", "tok", "  Ben \"B\"  ");
+  Check(r.ok() && r.person.name == "Ben \"B\"" && by_name.Requests()[0].body == R"({"to":"Ben \"B\""})",
+        "a name is trimmed and escaped");
+  Check(FriendTarget("  Yann R ") == "Yann R" && FriendTarget("   ").empty() && FriendTarget("").empty() &&
+            FriendTarget(std::string(41, 'a')).empty() && !FriendTarget(std::string(40, 'a')).empty(),
+        "what the player typed: trimmed, not empty, not absurdly long");
+  FakeTransport mutual([](const HttpRequest&, int) {
+    return Answer(200, R"({"status":"friends","xuid":"E000000000000003","name":"Ben"})");
+  });
+  r = SendFriendRequest(mutual, "https://s", "tok", "Ben");
+  Check(r.ok() && r.friends, "a request to someone who asked first makes friends at once");
+
+  int calls = 0;
+  FakeTransport none([&](const HttpRequest&, int) {
+    ++calls;
+    return Answer(200);
+  });
+  r = SendFriendRequest(none, "https://s", "tok", "   ");
+  Check(!r.ok() && r.error == AccountError::kRefused && !r.message.empty() && calls == 0,
+        "nothing typed never costs a request");
+
+  const auto request_fails = [](int status, std::string body = {}) {
+    FakeTransport t([=](const HttpRequest&, int) { return Answer(status, body); });
+    return SendFriendRequest(t, "https://s", "tok", "Ben");
+  };
+  r = request_fails(404, R"({"detail":"No player has that name"})");
+  Check(r.error == AccountError::kRefused && r.message == "No player has that name",
+        "the server's sentence is shown for an unknown name");
+  r = request_fails(409, R"({"detail":"Your friend list is full"})");
+  Check(r.error == AccountError::kRefused && r.message == "Your friend list is full", "a full list");
+  r = request_fails(422, R"({"detail":"That is you"})");
+  Check(r.error == AccountError::kRefused && r.message == "That is you", "one's own name");
+  Check(request_fails(429).error == AccountError::kRateLimited, "too many requests");
+  Check(request_fails(401).error == AccountError::kBadToken, "an unknown account");
+  Check(request_fails(0).error == AccountError::kUnreachable, "no connection");
+  Check(request_fails(500).error == AccountError::kServer, "server error");
+  Check(request_fails(201, "{}").error == AccountError::kServer, "an answer without a status is not trusted");
+  Check(!request_fails(404).message.empty(), "every failure has a message");
+
+  const auto answer = [](FriendAction action, int status = 200) {
+    FakeTransport t([=](const HttpRequest&, int) { return Answer(status, R"({"status":"ok"})"); });
+    const ActionResult result = AnswerFriend(t, "https://s", "tok", action, "E000000000000003");
+    return std::make_pair(result, t.Requests());
+  };
+  const auto [accepted, accept_sent] = answer(FriendAction::kAccept);
+  Check(accepted.ok() && accept_sent.size() == 1 && accept_sent[0].url == "https://s/v1/friends/accept" &&
+            accept_sent[0].method == "POST" && accept_sent[0].bearer == "tok" &&
+            accept_sent[0].body == R"({"xuid":"E000000000000003"})",
+        "accept");
+  Check(answer(FriendAction::kDecline).second[0].url == "https://s/v1/friends/decline", "decline");
+  Check(answer(FriendAction::kCancel).second[0].url == "https://s/v1/friends/cancel", "cancel");
+  Check(answer(FriendAction::kRemove).second[0].url == "https://s/v1/friends/remove", "remove");
+  Check(answer(FriendAction::kAccept, 404).first.error == AccountError::kRefused, "no such request");
+  Check(answer(FriendAction::kAccept, 0).first.error == AccountError::kUnreachable, "no connection");
+}
+
+static void TestDeleteAccount() {
+  Section("delete account");
+  FakeTransport ok([](const HttpRequest&, int) { return Answer(200, R"({"deleted":"E000000000000003"})"); });
+  const ActionResult r = DeleteAccount(ok, "https://s", "tok");
+  const auto sent = ok.Requests();
+  Check(r.ok() && sent.size() == 1 && sent[0].method == "POST" && sent[0].url == "https://s/v1/me/delete" &&
+            sent[0].bearer == "tok" && sent[0].body == R"({"confirm":"DELETE"})",
+        "POST with the confirmation and the account key");
+  FakeTransport gone([](const HttpRequest&, int) { return Answer(401); });
+  Check(DeleteAccount(gone, "https://s", "tok").error == AccountError::kBadToken, "an account the server no longer knows");
+  FakeTransport down([](const HttpRequest&, int) { return Answer(0); });
+  const ActionResult d = DeleteAccount(down, "https://s", "tok");
+  Check(d.error == AccountError::kUnreachable && !d.message.empty(), "no connection: nothing is deleted, the player is told");
 }
 
 static void TestRename() {
@@ -387,6 +471,8 @@ int main() {
   TestCheckName();
   TestRegister();
   TestRename();
+  TestFriends();
+  TestDeleteAccount();
   TestRestore();
   TestPostScores();
   TestRetryDelay();

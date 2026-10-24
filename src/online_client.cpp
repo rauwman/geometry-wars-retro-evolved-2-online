@@ -267,8 +267,8 @@ std::string DescribeError(AccountError error) {
     case AccountError::kNone: return {};
     case AccountError::kInvalidName: return "That name is not allowed.";
     case AccountError::kNameTaken: return "That name is already taken.";
-    case AccountError::kWrongInvite: return "The invite code is wrong.";
     case AccountError::kClosed: return "The server is not accepting new players.";
+    case AccountError::kRefused: return "The server refused that.";
     case AccountError::kRateLimited: return "Too many attempts. Try again later.";
     case AccountError::kBadToken: return "Your account is no longer known to the server.";
     case AccountError::kUnreachable: return "The server could not be reached.";
@@ -304,8 +304,7 @@ NameCheck CheckName(HttpTransport& transport, const std::string& base_url, std::
   return {NameState::kInvalid, message != json.end() ? message->second : "That name is not allowed."};
 }
 
-RegisterResult Register(HttpTransport& transport, const std::string& base_url, std::string_view name,
-                        std::string_view invite) {
+RegisterResult Register(HttpTransport& transport, const std::string& base_url, std::string_view name) {
   RegisterResult result;
   if (const std::string problem = NameProblem(name); !problem.empty()) {
     result.error = AccountError::kInvalidName;
@@ -315,7 +314,7 @@ RegisterResult Register(HttpTransport& transport, const std::string& base_url, s
   HttpRequest request;
   request.method = "POST";
   request.url = base_url + "/v1/register";
-  request.body = "{\"name\":\"" + JsonEscape(name) + "\",\"invite\":\"" + JsonEscape(invite) + "\"}";
+  request.body = "{\"name\":\"" + JsonEscape(name) + "\"}";
   const HttpResponse response = transport.Send(request);
 
   switch (response.status) {
@@ -334,11 +333,7 @@ RegisterResult Register(HttpTransport& transport, const std::string& base_url, s
       return result;
     }
     case 0: result.error = AccountError::kUnreachable; break;
-    case 403: {
-      const std::string detail = Lower(Detail(response));
-      result.error = detail.find("closed") != std::string::npos ? AccountError::kClosed : AccountError::kWrongInvite;
-      break;
-    }
+    case 403: result.error = AccountError::kClosed; break;
     case 409: result.error = AccountError::kNameTaken; break;
     case 422:
       result.error = AccountError::kInvalidName;
@@ -413,6 +408,103 @@ RenameResult Rename(HttpTransport& transport, const std::string& base_url, const
   }
   if (result.message.empty()) result.message = DescribeError(result.error);
   return result;
+}
+
+namespace {
+
+// The error of a friend call from its status. 404, 409, 422 and 429 carry a sentence of the server's for the player.
+ActionResult FriendFailure(const HttpResponse& response) {
+  ActionResult result;
+  switch (response.status) {
+    case 0: result.error = AccountError::kUnreachable; break;
+    case 401: result.error = AccountError::kBadToken; break;
+    case 429: result.error = AccountError::kRateLimited; break;
+    case 404:
+    case 409:
+    case 422: result.error = AccountError::kRefused; break;
+    default: result.error = AccountError::kServer; break;
+  }
+  if (result.error == AccountError::kRefused) result.message = Detail(response);
+  if (result.message.empty()) result.message = DescribeError(result.error);
+  return result;
+}
+
+HttpRequest AuthorizedPost(const std::string& base_url, const std::string& path, const std::string& token,
+                           std::string body) {
+  HttpRequest request;
+  request.method = "POST";
+  request.url = base_url + path;
+  request.bearer = token;
+  request.body = std::move(body);
+  return request;
+}
+
+}  // namespace
+
+ActionResult DeleteAccount(HttpTransport& transport, const std::string& base_url, const std::string& token) {
+  const HttpResponse response =
+      transport.Send(AuthorizedPost(base_url, "/v1/me/delete", token, R"({"confirm":"DELETE"})"));
+  if (response.status == 200) {
+    ActionResult done;
+    done.error = AccountError::kNone;
+    return done;
+  }
+  return FriendFailure(response);
+}
+
+std::string FriendTarget(std::string_view text) {
+  const std::string_view trimmed = Trim(text);
+  if (trimmed.empty() || trimmed.size() > 40) return {};
+  return std::string(trimmed);
+}
+
+FriendRequestResult SendFriendRequest(HttpTransport& transport, const std::string& base_url, const std::string& token,
+                                      std::string_view name) {
+  FriendRequestResult result;
+  const std::string target = FriendTarget(name);
+  if (target.empty()) {
+    result.error = AccountError::kRefused;
+    result.message = "Enter the name of a player.";
+    return result;
+  }
+  const HttpResponse response =
+      transport.Send(AuthorizedPost(base_url, "/v1/friends/request", token, "{\"to\":\"" + JsonEscape(target) + "\"}"));
+  if (response.status == 200 || response.status == 201) {
+    const auto json = ParseFlatJson(response.body);
+    const auto status = json.find("status");
+    if (status != json.end() && (status->second == "sent" || status->second == "friends")) {
+      const auto xuid = json.find("xuid");
+      const auto name = json.find("name");
+      result.error = AccountError::kNone;
+      result.friends = status->second == "friends";
+      result.person = {xuid != json.end() ? xuid->second : std::string(), name != json.end() ? name->second : std::string()};
+      return result;
+    }
+    result.error = AccountError::kServer;
+    result.message = DescribeError(result.error);
+    return result;
+  }
+  static_cast<ActionResult&>(result) = FriendFailure(response);
+  return result;
+}
+
+ActionResult AnswerFriend(HttpTransport& transport, const std::string& base_url, const std::string& token,
+                          FriendAction action, std::string_view xuid) {
+  const char* path = "/v1/friends/accept";
+  switch (action) {
+    case FriendAction::kAccept: path = "/v1/friends/accept"; break;
+    case FriendAction::kDecline: path = "/v1/friends/decline"; break;
+    case FriendAction::kCancel: path = "/v1/friends/cancel"; break;
+    case FriendAction::kRemove: path = "/v1/friends/remove"; break;
+  }
+  const HttpResponse response =
+      transport.Send(AuthorizedPost(base_url, path, token, "{\"xuid\":\"" + JsonEscape(xuid) + "\"}"));
+  if (response.status == 200) {
+    ActionResult done;
+    done.error = AccountError::kNone;
+    return done;
+  }
+  return FriendFailure(response);
 }
 
 UploadResult PostScores(HttpTransport& transport, const std::string& base_url, const std::string& token,
