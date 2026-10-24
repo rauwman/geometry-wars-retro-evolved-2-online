@@ -27,6 +27,7 @@
 #include "launcher_options.h"
 #include "launcher_settings.h"
 #include "options_menu_rules.h"
+#include "unlock_all_modes.h"
 
 namespace gw2 {
 namespace {
@@ -163,6 +164,8 @@ std::vector<Page> BuildPages(const GameSettings& settings) {
                                   kShowResolutionKey, kShowResolutionDefault, "Off", "On"));
   gameplay.rows.push_back(BoolRow("Frame counter", "Shows the frame rate in the corner. F2 also toggles it.",
                                   kShowFrameCounterKey, kShowFrameCounterDefault, "Hidden", "Shown"));
+  gameplay.rows.push_back(BoolRow(unlock_all_modes::kLabel, unlock_all_modes::kDescription, unlock_all_modes::kKey,
+                                  unlock_all_modes::kDefault, "Off", "On"));
   pages.push_back(std::move(gameplay));
 
   Page controls{std::string(PageName(PageId::kControls)), {}};

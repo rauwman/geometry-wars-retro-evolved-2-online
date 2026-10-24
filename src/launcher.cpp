@@ -48,6 +48,7 @@
 #include "launcher_settings.h"
 #include "log_filter.h"
 #include "player_names.h"
+#include "unlock_all_modes.h"
 #include "update_config.h"
 #include "updater/update_ui.h"
 
@@ -660,6 +661,8 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
     ui.Toggle("Render resolution in title", kShowResolutionHelp, kShowResolutionKey, kShowResolutionDefault,
               "Off", "On");
     ui.Toggle("Frame counter", kFrameCounterHelp, kShowFrameCounterKey, kShowFrameCounterDefault, "Hidden", "Shown");
+    ui.Toggle(unlock_all_modes::kLabel, unlock_all_modes::kDescription, unlock_all_modes::kKey,
+              unlock_all_modes::kDefault, "Off", "On");
     if (ui.Section("Player names", true)) {
       ui.Help(kPlayerNamesHelp);
       for (const PlayerNameSetting& player : kPlayerNames) {

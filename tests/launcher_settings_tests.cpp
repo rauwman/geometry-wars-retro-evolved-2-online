@@ -26,6 +26,7 @@
 #include "launcher_settings.h"
 #include "multisampling.h"
 #include "retired_settings.h"
+#include "unlock_all_modes.h"
 
 namespace fs = std::filesystem;
 using namespace gw2;
@@ -144,6 +145,7 @@ void RegisterGameDefaults(FakeCvars& cvars) {
   cvars.Register(kShowFpsKey, kShowFpsDefault ? "true" : "false");
   cvars.Register(kShowResolutionKey, kShowResolutionDefault ? "true" : "false");
   cvars.Register(kShowFrameCounterKey, kShowFrameCounterDefault ? "true" : "false");
+  cvars.Register(unlock_all_modes::kKey, unlock_all_modes::kDefault ? "true" : "false");
   for (const cheats::CheatInfo& cheat : cheats::kCheats) {
     cvars.Register(cheat.key, cheats::kCheatDefault ? "true" : "false");
   }
@@ -546,6 +548,40 @@ void TestFrameCounterSetting() {
   CHECK(settings.Get(kShowFrameCounterKey) == "false");
   CHECK(settings.Save());
   CHECK(ReadText(file).find("gw2_show_frame_counter = false") != std::string::npos);
+}
+
+void TestUnlockAllGameModesSetting() {
+  Section("unlock all game modes");
+  CHECK(!unlock_all_modes::kDefault);
+  CHECK(std::string_view(unlock_all_modes::kKey) == "gw2_unlock_all_game_modes");
+  bool managed = false;
+  for (const ManagedSetting& setting : ManagedSettings()) {
+    managed = managed || setting.key == unlock_all_modes::kKey;
+  }
+  CHECK(managed);
+  CHECK(!IsWindowSetting(unlock_all_modes::kKey));
+  CHECK(!IsLauncherPlacementSetting(unlock_all_modes::kKey));
+
+  const fs::path dir = FreshDir("unlock_all_modes");
+  const fs::path file = LauncherSettingsPath(dir);
+  FakeCvars cvars;
+  RegisterGameDefaults(cvars);
+  GameSettings settings(cvars, file, dir / "missing.toml");
+  settings.Capture();
+  settings.MarkWindowCreated();
+  CHECK(settings.Get(unlock_all_modes::kKey) == "false");
+
+  settings.Set(unlock_all_modes::kKey, "true");
+  CHECK(!settings.WindowChanged());
+  CHECK(!settings.Apply());
+  CHECK(cvars.values[unlock_all_modes::kKey] == "true");
+  CHECK(settings.Save());
+  CHECK(ReadText(file).find("gw2_unlock_all_game_modes = true") != std::string::npos);
+
+  settings.ResetToDefaults();
+  CHECK(settings.Get(unlock_all_modes::kKey) == "false");
+  CHECK(settings.Save());
+  CHECK(ReadText(file).find("gw2_unlock_all_game_modes = false") != std::string::npos);
 }
 
 void TestFrameLimitSetting() {
@@ -1343,6 +1379,7 @@ int main() {
   TestFrameRateSetting();
   TestRenderResolutionSetting();
   TestFrameCounterSetting();
+  TestUnlockAllGameModesSetting();
   TestFrameLimitSetting();
   TestBloomSetting();
   TestMultisamplingSetting();

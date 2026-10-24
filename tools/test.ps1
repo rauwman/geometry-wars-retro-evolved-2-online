@@ -9,7 +9,8 @@
   the adapter order), tests\aspect_ratio_tests.cpp (the Aspect Ratio table, canvas, window sizes and the retired
   Letterbox setting), tests\window_host_tests.cpp (the window title, the frame-rate
   format and the sampler), tests\cheats_tests.cpp (the cheat settings, the in-game menu model and the host
-  hotkeys) and tests\user_data_tests.cpp (the portable user_data root and the move of the system
+  hotkeys), tests\unlock_all_modes_tests.cpp (the profile-mask override logic and its launcher/Options-menu/hook
+  wiring) and tests\user_data_tests.cpp (the portable user_data root and the move of the system
   folder into it), with Visual Studio's clang++, then checks that the release folder check refuses user data and
   saves (scratch folders only). No game files and no ReXGlue runtime are needed. The
   launcher tests need TRG Launcher: third_party\trg-launcher, or the folder named by GW2_TRG_LAUNCHER_DIR.
@@ -32,6 +33,7 @@ $FrameLimiterExe = Join-Path $OutDir 'frame_limiter_tests.exe'
 $PlacementExe = Join-Path $OutDir 'launcher_placement_tests.exe'
 $UserDataExe = Join-Path $OutDir 'user_data_tests.exe'
 $CheatsExe = Join-Path $OutDir 'cheats_tests.exe'
+$UnlockAllModesExe = Join-Path $OutDir 'unlock_all_modes_tests.exe'
 $AdapterExe = Join-Path $OutDir 'graphics_adapter_tests.exe'
 $AspectExe = Join-Path $OutDir 'aspect_ratio_tests.exe'
 $UpdateExe = Join-Path $OutDir 'update_tests.exe'
@@ -107,6 +109,10 @@ try {
         (Join-Path $Root 'tests\cheats_tests.cpp') -o $CheatsExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
+        ('-DGW2_SRC_DIR=\"' + ((Join-Path $Root 'src') -replace '\\', '/') + '\"') `
+        (Join-Path $Root 'tests\unlock_all_modes_tests.cpp') -o $UnlockAllModesExe
+    if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
+    & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
         (Join-Path $Root 'tests\graphics_adapter_tests.cpp') (Join-Path $Root 'src\graphics_adapters.cpp') `
         -ladvapi32 -ldxgi -ld3d12 -o $AdapterExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
@@ -154,6 +160,8 @@ if ($LASTEXITCODE) { throw "Launcher settings tests failed ($LASTEXITCODE)" }
 if ($LASTEXITCODE) { throw "User data tests failed ($LASTEXITCODE)" }
 & $CheatsExe
 if ($LASTEXITCODE) { throw "Cheats tests failed ($LASTEXITCODE)" }
+& $UnlockAllModesExe
+if ($LASTEXITCODE) { throw "Unlock all game modes tests failed ($LASTEXITCODE)" }
 & $AdapterExe
 if ($LASTEXITCODE) { throw "Graphics card tests failed ($LASTEXITCODE)" }
 & $AspectExe

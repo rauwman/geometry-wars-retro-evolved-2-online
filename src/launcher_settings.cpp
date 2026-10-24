@@ -20,6 +20,7 @@
 #include "multisampling.h"
 #include "player_names.h"
 #include "trg/settings.h"
+#include "unlock_all_modes.h"
 
 namespace gw2 {
 namespace {
@@ -54,6 +55,7 @@ std::vector<ManagedSetting> BuildManagedSettings() {
       {kShowResolutionKey, ValueKind::kBool},
       {kShowFrameCounterKey, ValueKind::kBool},
       {kDetailedLoggingKey, ValueKind::kBool},
+      {unlock_all_modes::kKey, ValueKind::kBool},
       {cheats::kInvincibleKey, ValueKind::kBool},
       {cheats::kInfiniteShieldKey, ValueKind::kBool},
       {cheats::kInfiniteBombsKey, ValueKind::kBool},
