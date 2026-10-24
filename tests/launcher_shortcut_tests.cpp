@@ -95,13 +95,31 @@ void TestTrgHotkeys() {
   std::printf("TRG centralizes Enter, Ctrl+S and Escape; capture suppresses them\n");
   const std::string trg = ReadTrgSource("launcher.cpp");
   CHECK(Has(trg, "void Launcher::HandleHotkeys()"));
-  CHECK(Has(trg, "if (capturing_key() || io.WantTextInput || ImGui::IsPopupOpen("));
+  CHECK(Has(trg, "if (capturing_key() || ImGui::IsPopupOpen("));
   CHECK(Has(trg, "ImGui::IsKeyPressed(ImGuiKey_Enter, false)"));
   CHECK(Has(trg, "if (!io.NavVisible && !ImGui::IsAnyItemActive()) want_play_ = true;"));
-  CHECK(Has(trg, "io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false)"));
-  CHECK(Has(trg, "Save();"));
   CHECK(Has(trg, "ImGui::IsKeyPressed(ImGuiKey_Escape, false)"));
   CHECK(Has(trg, "want_quit_ = true;"));
+}
+
+void TestCtrlSSave() {
+  std::printf("Ctrl+S saves through Launcher::Save(), before the text-input guard\n");
+  const std::string trg = ReadTrgSource("launcher.cpp");
+  CHECK(Has(trg, "const bool ctrl = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl);"));
+  CHECK(Has(trg, "if (ctrl && ImGui::IsKeyPressed(ImGuiKey_S, false)) {"));
+  CHECK(!Has(trg, "io.KeyCtrl"));
+
+  const std::size_t hotkeys_pos = trg.find("void Launcher::HandleHotkeys() {");
+  const std::size_t ctrl_s_pos = trg.find("ctrl && ImGui::IsKeyPressed(ImGuiKey_S, false)", hotkeys_pos);
+  const std::size_t text_guard_pos = trg.find("io.WantTextInput) return;", hotkeys_pos);
+  CHECK(hotkeys_pos != std::string::npos);
+  CHECK(ctrl_s_pos != std::string::npos);
+  CHECK(text_guard_pos != std::string::npos);
+  CHECK(ctrl_s_pos < text_guard_pos);
+
+  CHECK(Has(trg, "bool Launcher::Save() {"));
+  CHECK(Has(trg, "SetStatus(ok ? \"Settings saved.\""));
+  CHECK(Has(trg, "if (ImGui::Button(\"Save\", ImVec2(bw, bh))) Save();"));
 }
 
 void TestCaptureEscape() {
@@ -158,6 +176,7 @@ int main() {
   TestFooterHint();
   TestPlaySaveSemantics();
   TestTrgHotkeys();
+  TestCtrlSSave();
   TestCaptureEscape();
   TestKeyboardSection();
   TestFallbackLauncher();

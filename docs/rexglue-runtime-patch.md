@@ -61,12 +61,31 @@ class the game's code or `share/rexglue/rex_app.cpp` uses (`Window`, the public 
 | [0045-imgui-mouse-cursors](../patches/rexglue-sdk/0045-imgui-mouse-cursors.patch) | both | runtime | 0045 | the ImGui drawer applies the cursor shape ImGui asked for through `SDL_SetCursor` |
 | [0046-sdl-video-failure-guidance](../patches/rexglue-sdk/0046-sdl-video-failure-guidance.linux.patch) | Linux | runtime | 0046 | a failed `SDL_InitSubSystem(SDL_INIT_VIDEO)` also writes the SDL error and the DISPLAY/WAYLAND_DISPLAY hint to stderr |
 | [0047-input-activity-callback](../patches/rexglue-sdk/0047-input-activity-callback.patch) | both | runtime | 0047 | a passive per-device callback reports gamepad state changes after the input system reads them, without altering input |
-| [0048-linux-procmap-query](../patches/rexglue-sdk/0048-linux-procmap-query.linux.patch) | Linux | runtime | - | `QueryProtect`, `Protect` with an old access and `IsRangeFullyMapped` ask the kernel for one mapping with the `PROCMAP_QUERY` ioctl (Linux 6.11+) instead of reading `/proc/self/maps` (`src/core/memory_posix.cpp`) |
-| [0049-linux-skip-slow-queryprotect](../patches/rexglue-sdk/0049-linux-skip-slow-queryprotect.linux.patch) | Linux | both | - | without that ioctl the write-watch fault handler skips its `QueryProtect` recheck and tells a watch that is already cleared from the heap's own bookkeeping (`mmio_handler.cpp`, `xmemory.cpp`, `xmemory.h`, `utils.h`) |
+| [0048-inline-bit-scan-forward](../patches/rexglue-sdk/0048-inline-bit-scan-forward.windows.patch) | Windows | both | 0048 | `rex::bit_scan_forward` is inline in `math.h`, so the GPU plugin no longer calls it through the runtime DLL's import table |
+| [0049-gpu-plugin-thinlto](../patches/rexglue-sdk/0049-gpu-plugin-thinlto.windows.patch) | Windows | GPU plugin | 0049 | `rexgpu-xenos` is built with ThinLTO in Release |
+| [0050-d3d12-unchanged-constant-writes](../patches/rexglue-sdk/0050-d3d12-unchanged-constant-writes.windows.patch) | Windows | GPU plugin | 0050 | float, bool, loop and fetch constants rewritten with the values they have keep the uploaded constant buffers, texture bindings and sampler memo (`gpu_skip_unchanged_constant_writes`); vertex buffer residency is still reset on every fetch constant write |
+| [0051-texture-cache-resolve-target-index](../patches/rexglue-sdk/0051-texture-cache-resolve-target-index.windows.patch) | Windows | GPU plugin | 0051 | the texture cache indexes its textures by base page, so `FindResolveCopyTargets` looks at the textures on the resolve's page |
+| [0052-d3d12-per-draw-loops](../patches/rexglue-sdk/0052-d3d12-per-draw-loops.windows.patch) | Windows | GPU plugin | 0052 | vertex buffer residency invalidated by 64-bit masks, used float constants copied in runs, stencil tile bits read and added in up to two contiguous runs |
+| [0053-gpu-plugin-pgo](../patches/rexglue-sdk/0053-gpu-plugin-pgo.windows.patch) | Windows | GPU plugin | 0053 | `REXGPU_PGO_USE` names a merged profile to optimize `rexgpu-xenos` with in Release |
+| [0054-local-user-display-names](../patches/rexglue-sdk/0054-local-user-display-names.patch) | both | runtime | - | configurable local player display names |
+| [0055-gpu-side-effect-free-register-ranges](../patches/rexglue-sdk/0055-gpu-side-effect-free-register-ranges.patch) | both | GPU plugin | 0048 | widens the register-write bulk path of 0004 to every register without a write side effect, not only `0x2000`-`0x3FFF` |
+| [0056-d3d12-gpu-frame-trace](../patches/rexglue-sdk/0056-d3d12-gpu-frame-trace.windows.patch) | Windows | GPU plugin | - | the `gpu_frame_trace_interval` cvar (off by default, no log output when off): every draw, resolve and swap of one frame in N is logged with its render target, blend and texture formats (D3D12) |
+| [0057-d3d12-hdr-float-resolve-copies](../patches/rexglue-sdk/0057-d3d12-hdr-float-resolve-copies.windows.patch) | Windows | both | - | float resolve copies (`float_resolve_copies`, Smooth glow) in the D3D12 render target and texture caches; HDR output (`hdr_output` and the `hdr_*` cvars) in the presenter, the immediate drawer, the swap of the command processor and the pipeline cache ([Why 0057](#why-0057)) |
+| [0058-linux-procmap-query](../patches/rexglue-sdk/0058-linux-procmap-query.linux.patch) | Linux | runtime | - | `QueryProtect`, `Protect` with an old access and `IsRangeFullyMapped` ask the kernel for one mapping with the `PROCMAP_QUERY` ioctl (Linux 6.11+) instead of reading `/proc/self/maps` (`src/core/memory_posix.cpp`) |
+| [0059-linux-skip-slow-queryprotect](../patches/rexglue-sdk/0059-linux-skip-slow-queryprotect.linux.patch) | Linux | both | - | without that ioctl the write-watch fault handler skips its `QueryProtect` recheck and tells a watch that is already cleared from the heap's own bookkeeping (`mmio_handler.cpp`, `xmemory.cpp`, `xmemory.h`, `utils.h`) |
 | Pins | | | | [patches/rexglue-sdk/baseline.env](../patches/rexglue-sdk/baseline.env): tag, commit and the stock runtime and plugin hashes |
 
 There is no 0034: Hard Corps' 0034 is this project's 0002. 0036 to 0038 are Hard Corps' patches with the cvar renamed
-from `hcu_internal_render_scale` to `gw2_internal_render_scale`; nothing else differs. 0039 to 0047 come from the upstream port (v0.5.0). 0048 and 0049 are this fork's own.
+from `hcu_internal_render_scale` to `gw2_internal_render_scale`; nothing else differs. 0039 to 0047 come from the upstream port (v0.5.0). 0058 and 0059 are this fork's own.
+
+0048 to 0053 are ported from Crackdown Recompiled's PR #13 (patches 0097 to 0102 there, head
+`7a90c373b8912a025b2d084cdc696bbd649fdfea`); see [Why 0048 to 0053](#why-0048-to-0053-gpu-command-processor-cost).
+
+0055 is Hard Corps' 0048, itself adapted from Crackdown Recompiled's `patches/sdk/0023-gpu-fast-register-ranges.patch`;
+see [Why 0055](#why-0055-wider-register-write-bulk-path).
+
+0056 and 0057 are ported from this project's own `pr-7-native-hdr` reference branch (old patches 0039 and 0040 there),
+rebased onto the current chain; see [Why 0057](#why-0057).
 
 ## What each platform gets
 
@@ -92,7 +111,9 @@ from `hcu_internal_render_scale` to `gw2_internal_render_scale`; nothing else di
 | Title threads stopped before teardown (0033) | common | common |
 | Swapchain paint pipeline kept while the format is unchanged | not applicable: the D3D12 presenter has no such cache | 0035 |
 | Host render targets smaller than the draw resolution (0036) | 0037 | 0038 |
-| Write-watch fault handler cost (0048, 0049) | not needed: `VirtualQuery` answers directly | 0048, and 0049 where the kernel lacks the ioctl |
+| GPU command processor cost (0048 to 0053) | 0048 to 0053 | not applied |
+| Wider register-write bulk path (0055) | common | common |
+| Write-watch fault handler cost (0058, 0059) | not needed: `VirtualQuery` answers directly | 0058, and 0059 where the kernel lacks the ioctl |
 
 ## Why 0001: physical release order
 
@@ -411,7 +432,102 @@ The pixel position (`ps_param_gen`) is divided by the host scale; the resolve fi
 coordinates keep the draw resolution scale. The viewport and the scissor are rounded outward to whole host pixels and
 the vertex transform follows the rounded viewport edges.
 
-## Why 0048 and 0049
+## Why 0048 to 0053: GPU command processor cost
+
+The six patches cut the CPU cost of the GPU command processor per draw. They apply on Windows only: Linux builds and
+their glibc baseline are unchanged, and 0048 and 0051 stay Windows only until a Linux build validates them.
+
+- 0048 defines `rex::bit_scan_forward` inline in `math.h` (all ones when no bit is set, as the platform versions
+  returned) and drops the out-of-line copies, so the per-draw loops no longer call into `rexruntime.dll`.
+- 0049 links `rexgpu-xenos` with ThinLTO in Release, which lets the per-draw path inline across its translation units.
+- 0050 skips the rebuild of derived state when a constant is rewritten with the same value.
+  `gpu_skip_unchanged_constant_writes` (on) turns it off. Vertex buffer residency is always invalidated for fetch constant
+  writes, since the game may have rewritten the vertex data at the same address.
+- 0051 adds the base page to textures index that `FindResolveCopyTargets` uses.
+- 0052 is the per-draw loops of the D3D12 command processor and render target cache described in the table.
+- 0053 adds `REXGPU_PGO_USE` (Release), see below.
+
+The Crackdown dirty-range memo in `RenderTargetCache::SetEdramTilesDirty` is not ported: it caused lighting flicker and
+was removed from the final PR. `SetEdramTilesDirty` is unchanged.
+
+0050 and 0052 differ from Crackdown's patches only in context: the anonymous namespace and the cvar are created by 0050
+here, and 0052 adds its helper to it.
+
+### Profile-guided optimization
+
+`rexgpu-xenos.dll` is built with profile guidance in Release when `patches\rexglue-sdk-pgo\rexgpu-xenos.profdata`
+exists. Without the file the plugin builds as before. The profile is specific to this game and is not provided yet;
+Crackdown's profile must not be used. The fingerprint in `rexruntime-patch.txt` has a `pgo=` line, `off` or
+`use <SHA-256 of the profile>`, so adding, replacing or deleting the profile rebuilds the runtime.
+
+To make a profile, record it manually during gameplay: build the plugin with clang `-fprofile-generate`, play the
+heavy scenes, and merge the raw profiles with Visual Studio's `llvm-profdata merge`. Functions changed since the
+profile was made are optimized without it, so a stale profile only means less optimization.
+
+## Why 0055: wider register-write bulk path
+
+0004's block-copy path only covered render-state registers (`0x2000`-`0x3FFF`) and the three constant-register runs.
+Every other register below `0x2000` without a write side effect - fetch constants below the context register range,
+blend/alpha/stencil state, viewport and scissor registers, and the rest of the fixed-function state - still went
+through `WriteRegister` one register at a time, each call walking the known-register bitset and the side-effect
+switch. `IsSideEffectFreeRegisterRange` replaces the `0x2000` floor with an explicit exclusion of the four register
+spans that do have side effects (shader constants, the scratch registers, `COHER_STATUS_HOST`, the gamma ramp ports -
+the same four `src/graphics/command_processor.cpp` already singles out in `WriteRegister`), so a `WriteRegistersFromMem`
+run that touches any other register - which a scene with many draws does every time a particle or an explosion changes
+fixed-function state between draws - takes the block-copy path too, instead of one virtual call per register. Both
+backends take the wider path through the base class, the same as 0004.
+
+## Why 0057
+
+The game draws in floating-point render targets (`k_2_10_10_10_FLOAT`, 7e3, hosted as `R16G16B16A16_FLOAT`), but every
+resolve into a texture goes through the 32-bit EDRAM layout and the guest texture format: the scene into
+`k_2_10_10_10` (10-bit unorm), each bloom level into `k_16_16_16_16`. The bloom levels are drawn in 7e3, whose
+smallest step above zero, 1/512 in linear light, is about 15/255 after the final gamma conversion. Faint bloom tails
+end in that step, which is the flat, hard-edged glow around the stars. 0056's `gpu_frame_trace_interval` found the
+passes.
+
+- **Float resolve copies** (`float_resolve_copies`, on in the shipped config as Smooth glow). A resolve from a
+  render target whose host format is `R16G16B16A16_FLOAT` and that alone owns the resolved area from its origin,
+  single-sampled, is also copied by a compute shader into an `R16G16B16A16_FLOAT` texture: the render target times
+  the copy's exponent bias, red and blue swapped like the copy, without clamping. A texture bound with the same base
+  address, a format of the 2_10_10_10 or 16_16_16_16 families, no mips and a size within the copy is sampled from the
+  float copy instead (a smaller texture gets a copy of the top-left part, so normalized coordinates still match).
+  The guest memory is written as before, so the deferred writeback of 0030/0031 and the direct texture copies of
+  0022/0023 are unaffected; the float copy is an additional output alongside them, not a replacement, and is dropped
+  (not promoted) from a render target 0022/0023 would already copy as a plain integer texture. A resolve overlapping
+  a float copy drops it.
+- **HDR output** (`hdr_output`, read once at startup). The swap chain is FP16 in the scRGB color space, the guest
+  output and the paint pipelines are FP16, the paint effect is bilinear without dithering, and the UI is linearized
+  to the paper white. `k_2_10_10_10` render targets are `R16G16B16A16_FLOAT` on the host, with clamps where the
+  transfer and dump shaders pack them into 10 bits. In the final composite pixel shader (`FCF4C1A80AEC4B2C`), the
+  clamps of the scene-plus-bloom sums (scalar results of ALU slots 14, 16 and 19, vector result of 20) are removed;
+  the clamps that feed its scene darkening factor stay. The patched microcode has its own hash. The swap converts
+  the float copy of the front buffer (or the front buffer texture when there is none) to scRGB: the part above 1.0
+  is multiplied by `hdr_highlight_strength`, gamma 2.2 relative to `hdr_paper_white_nits` (0 = the SDR white level
+  Windows reports for the display), rolled off towards `hdr_peak_nits` (0 = the display's `MaxLuminance`) per
+  channel, or by the brightest channel as `hdr_highlight_saturation` goes to 1. The float copy is read with the
+  front buffer's component mapping. Without Windows HDR on the display, paper white and peak are SDR white.
+
+Shader hash verification: the final composite shader hash (`FCF4C1A80AEC4B2C`, 93 dwords) was cross-checked against
+the independent, unrelated static analysis in the bloom-control work, which reads the same shader from the shader
+cache (`584108FF.xsh`, cache index 17) and describes the same `bg = t0*c0.x + t1*c0.y`, `fg = t2*c1.x + t3*c1.y`
+tone-mapping shape at 93 dwords. The hash is a pure function of the game's own (unchanged) compiled microcode, so it
+is still correct in the current tree.
+
+0056 and 0057 adapt the old `pr-7-native-hdr` branch's 0039 and 0040 onto the current chain. That branch's snapshot
+already had the resolve-copy-into-textures and deferred-writeback work (0022 to 0032) and the internal render scale
+split (0036 to 0038), so most of the render target and texture cache hunks carry over with only line-offset changes:
+`PlanResolveTextureCopy`, the restructured `Resolve` (0031's `DeferredResolve`/`DispatchResolveCopy`) and
+`WriteFloatResolveCopy`'s host size (`GuestToHostX`/`GuestToHostY`, 0036/0037) all matched the current shape
+directly. What needed adapting is code added after that snapshot: `D3D12TextureCache::TextureSRVKey` gained
+`descriptor_index` and `descriptor_index_signed` members here (0057), and `FindOrCreateTextureDescriptor` is split
+into a new `AllocateSRVDescriptor` so the float copy's descriptor can share the allocator without going through a
+texture's own view creation. 0040 (current, transfer short-circuit) and 0041 to 0044 touch different functions in
+the same files and are left alone; the float copy path runs after 0004/0055's register bulk-copy path and 0043's
+draw-state memo have already decided whether a draw's render targets changed, so it adds no extra per-draw cost on
+the common path where nothing resolves.
+
+## Why 0058 and 0059
 
 The runtime watches guest memory the GPU has read: it protects those pages read-only on the host, and a write to one
 faults. The fault handler (`MMIOHandler::ExceptionCallback`) takes the global critical region, invalidates the GPU's copy
@@ -426,16 +542,16 @@ sound slow down with it. The main thread was not busy; it waited for that lock. 
 clock or the frame limiter changed nothing. A sampler of `/proc/<pid>/task` found the waiting threads on one futex, the
 global lock.
 
-- **0048** asks the kernel for just the mapping that contains the address, with the `PROCMAP_QUERY` ioctl on
+- **0058** asks the kernel for just the mapping that contains the address, with the `PROCMAP_QUERY` ioctl on
   `/proc/self/maps` (Linux 6.11 and newer). The text parse stays as the fallback for older kernels and when the call
   fails. The cvar `procmap_query = false` forces the fallback. A fault then costs about 0.035 ms, and the Steam Deck
   runs at 60 to 90 FPS.
-- **0049** is for kernels without the ioctl, where 0048 falls back to the slow parse. `memory::IsQueryProtectCheap()`
+- **0059** is for kernels without the ioctl, where 0058 falls back to the slow parse. `memory::IsQueryProtectCheap()`
   tells the handler whether `QueryProtect` is cheap (always on Windows and macOS, on Linux when the ioctl works). If not,
   the handler skips its recheck, and `Memory::AccessViolationCallback` asks `PhysicalHeap::IsStaleWriteFault` instead:
   if the heap's bookkeeping says the page is no longer watched and the guest sees it as writable, another thread has
   already cleared the watch, so the host page is made writable and the access is retried. That costs about 0.04 ms per
-  fault, measured with `procmap_query = false`, the same as 0048.
+  fault, measured with `procmap_query = false`, the same as 0058.
 
 Windows and macOS behave as before.
 

@@ -41,13 +41,17 @@ std::string RenderScaleLabel(int scale, AspectRatio aspect = AspectRatio::k16x9)
 
 std::vector<SettingChoice> InternalRenderScaleChoices();
 
-// Automatic, then each adapter (numbered when two share a name), then the saved one if it is not present.
-std::vector<SettingChoice> GraphicsAdapterChoices(const std::vector<GraphicsAdapter>& adapters,
-                                                  std::string_view current);
+// One choice per adapter, numbered when two share a name.
+std::vector<SettingChoice> GraphicsAdapterChoices(const std::vector<GraphicsAdapter>& adapters);
 
 std::vector<SettingChoice> AntiAliasingChoices();
 std::vector<SettingChoice> TextureFilteringChoices();
 std::vector<SettingChoice> BloomChoices();
+// Windows D3D12 only.
+std::vector<SettingChoice> SmoothGlowChoices();
+std::vector<SettingChoice> HdrChoices();
+std::vector<SettingChoice> HdrPaperWhiteChoices();
+std::vector<SettingChoice> HdrPeakChoices();
 std::vector<SettingChoice> FrameRateChoices();
 
 std::string KeyList(std::string keys);

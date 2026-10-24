@@ -18,7 +18,9 @@
 #include "keybinds.h"
 #include "launcher_platform.h"
 #include "multisampling.h"
+#include "player_names.h"
 #include "trg/settings.h"
+#include "unlock_all_modes.h"
 
 namespace gw2 {
 namespace {
@@ -39,6 +41,13 @@ std::vector<ManagedSetting> BuildManagedSettings() {
       {kMultisamplingKey, ValueKind::kBool},
       {kTextureFilteringKey, ValueKind::kInt},
       {kBloomKey, ValueKind::kString},
+      {kSmoothGlowKey, ValueKind::kBool},
+      {kHdrKey, ValueKind::kBool},
+      {kHdrPaperWhiteKey, ValueKind::kInt},
+      {kHdrPeakKey, ValueKind::kInt},
+      {kHdrHighlightStrengthKey, ValueKind::kString},
+      {kHdrHighlightSaturationKey, ValueKind::kString},
+      {kHdrDebugViewKey, ValueKind::kBool},
       {kKeyboardKey, ValueKind::kBool},
       {kVibrationKey, ValueKind::kBool},
       {kFrameRateKey, ValueKind::kInt},
@@ -46,6 +55,7 @@ std::vector<ManagedSetting> BuildManagedSettings() {
       {kShowResolutionKey, ValueKind::kBool},
       {kShowFrameCounterKey, ValueKind::kBool},
       {kDetailedLoggingKey, ValueKind::kBool},
+      {unlock_all_modes::kKey, ValueKind::kBool},
       {cheats::kInvincibleKey, ValueKind::kBool},
       {cheats::kInfiniteShieldKey, ValueKind::kBool},
       {cheats::kInfiniteBombsKey, ValueKind::kBool},
@@ -53,6 +63,7 @@ std::vector<ManagedSetting> BuildManagedSettings() {
       {kOnlineInviteKey, ValueKind::kString},
       {kOnlineNameKey, ValueKind::kString},
       {kOnlineTokenKey, ValueKind::kString},
+      {cheats::kMovementSpeedKey, ValueKind::kInt},
       {kLauncherXKey, ValueKind::kInt},
       {kLauncherYKey, ValueKind::kInt},
       {kLauncherWidthKey, ValueKind::kInt},
@@ -62,6 +73,9 @@ std::vector<ManagedSetting> BuildManagedSettings() {
   };
   for (const KeyboardAction& action : kKeyboardActions) {
     settings.push_back({action.key, ValueKind::kString});
+  }
+  for (const PlayerNameSetting& player : kPlayerNames) {
+    settings.push_back({player.key, ValueKind::kString});
   }
   return settings;
 }
@@ -241,7 +255,22 @@ void GameSettings::Set(std::string_view key, std::string value) {
   pending_[std::string(key)] = std::move(value);
 }
 
+void ApplyPlayerNames(CvarAccess& cvars) {
+  for (const PlayerNameSetting& player : kPlayerNames) {
+    if (!cvars.IsRegistered(player.sdk_key)) {
+      continue;
+    }
+    cvars.Assign(player.sdk_key, SdkPlayerName(player, cvars.Value(player.key)));
+  }
+}
+
 bool GameSettings::Save() {
+  for (const PlayerNameSetting& player : kPlayerNames) {
+    const auto name = pending_.find(player.key);
+    if (name != pending_.end() && !IsValidPlayerName(name->second)) {
+      name->second = player.default_name;
+    }
+  }
   Values changes;
   for (const auto& [key, value] : pending_) {
     const auto saved = saved_.find(key);
@@ -290,6 +319,7 @@ bool GameSettings::Apply() {
   }
   ApplyMultisampling(cvars_);
   ApplyInternalRenderPath(cvars_);
+  ApplyPlayerNames(cvars_);
   return restart || cvars_.RestartPending();
 }
 

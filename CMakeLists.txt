@@ -1,13 +1,13 @@
 # SDK boilerplate lives in generated/rexglue.cmake.
 
 cmake_minimum_required(VERSION 3.25)
-project(geometry_wars_retro_evolved_2 VERSION 0.5.0 LANGUAGES C CXX)
+project(geometry_wars_retro_evolved_2 VERSION 0.6.0 LANGUAGES C CXX)
 set(GW2_VERSION_SUFFIX "")
 # This fork's own version. It is the version of a release (tag v<this>, ZIP GeometryWarsRetroEvolved2-v<this>-windows-x64.zip)
 # and the one the launcher's self-update compares. The project VERSION above stays the upstream version this fork is based on.
 # The 1.x range is deliberate: upstream tags are v0.x, so the fork's tags never collide with fetched upstream tags.
 # Read by tools\package-release.ps1 and tools/package-linux.sh.
-set(GW2_MOD_VERSION "1.1.0")
+set(GW2_MOD_VERSION "1.2.0")
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -144,6 +144,16 @@ endif()
 set(_trg_patched_dir "${CMAKE_BINARY_DIR}/trg-launcher-patched")
 gw2_prepare_patched_trg_launcher("${_trg_source_dir}" "${_trg_patched_dir}" ${_trg_require_pinned})
 
+file(READ "${_trg_patched_dir}/src/launcher.cpp" _trg_launcher_source)
+string(FIND "${_trg_launcher_source}" "void Launcher::HandleHotkeys() {" _hotkeys_pos)
+string(SUBSTRING "${_trg_launcher_source}" ${_hotkeys_pos} -1 _hotkeys_source)
+string(FIND "${_hotkeys_source}" "ctrl && ImGui::IsKeyPressed(ImGuiKey_S, false)" _ctrl_s_pos)
+string(FIND "${_hotkeys_source}" "io.WantTextInput) return;" _text_guard_pos)
+if(_hotkeys_pos EQUAL -1 OR _ctrl_s_pos EQUAL -1 OR _text_guard_pos EQUAL -1 OR _ctrl_s_pos GREATER _text_guard_pos)
+    message(FATAL_ERROR "TRG Launcher: the staged HandleHotkeys does not handle Ctrl+S before the text-input guard (${_trg_patched_dir}/src/launcher.cpp)")
+endif()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_trg_patched_dir}/src/launcher.cpp")
+
 # Reconfigure when the patches, the upstream checkout or its HEAD change.
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${_trg_source_dir}/CMakeLists.txt")
@@ -179,12 +189,17 @@ set(GW2_SOURCES
     src/input_summary.cpp
     src/system_info.cpp
     src/profile_fix.cpp
+    src/player_name_display_hook.cpp
     src/live_fix.cpp
     src/achievements_overlay.cpp
     src/aspect_render.cpp
     src/cheat_menu.cpp
+    src/options_menu.cpp
     src/cheat_hooks.cpp
     src/cheats.cpp
+    src/debug_bomb.cpp
+    src/add_lives.cpp
+    src/unlock_all_modes.cpp
     src/bloom_fix.cpp
     src/crash_report.cpp
     src/rumble.cpp
@@ -345,13 +360,23 @@ target_compile_definitions(geometry_wars_retro_evolved_2 PRIVATE
     GW2_BUILD_CONFIG="$<CONFIG>"
     GW2_TRG_LAUNCHER_VERSION="${GW2_TRG_VERSION}")
 
-# The runtime reads its cvars from <exe dir>/geometry_wars_retro_evolved_2.toml.
-add_custom_command(TARGET geometry_wars_retro_evolved_2 POST_BUILD
+# The runtime reads its cvars from <exe dir>/geometry_wars_retro_evolved_2.toml. A POST_BUILD step only
+# runs when the target itself relinks, so it would miss a config-only edit; track it as its own build
+# output instead, with the source file as a DEPENDS, so Ninja re-copies it whenever it changes.
+# OUTPUT must be a concrete path: target-dependent generator expressions like TARGET_FILE_DIR cannot be
+# evaluated there. This target's executable lands directly in CMAKE_CURRENT_BINARY_DIR (single-config
+# Ninja, no RUNTIME_OUTPUT_DIRECTORY override), so that is the staged file's real directory.
+set(GW2_STAGED_TOML "${CMAKE_CURRENT_BINARY_DIR}/geometry_wars_retro_evolved_2.toml")
+add_custom_command(
+    OUTPUT "${GW2_STAGED_TOML}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/config/geometry_wars_retro_evolved_2.toml"
-        "$<TARGET_FILE_DIR:geometry_wars_retro_evolved_2>"
+        "${GW2_STAGED_TOML}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/config/geometry_wars_retro_evolved_2.toml"
     VERBATIM
 )
+add_custom_target(geometry_wars_retro_evolved_2_toml ALL DEPENDS "${GW2_STAGED_TOML}")
+add_dependencies(geometry_wars_retro_evolved_2 geometry_wars_retro_evolved_2_toml)
 
 add_custom_command(TARGET geometry_wars_retro_evolved_2 POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory
@@ -388,6 +413,7 @@ gw2_add_test(online_board_tests src/online_board.cpp src/online_client.cpp src/l
 gw2_add_test(profile_name_tests)
 gw2_add_test(profile_sync_tests)
 gw2_add_test(achievements_overlay_rules_tests)
+gw2_add_test(options_menu_tests)
 gw2_add_test(launcher_tests src/game_files.cpp src/stfs.cpp src/launcher_achievements.cpp)
 gw2_add_test(window_host_tests)
 target_compile_definitions(window_host_tests PRIVATE GW2_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -415,6 +441,8 @@ add_library(gw2_trg_test_support STATIC EXCLUDE_FROM_ALL
 target_include_directories(gw2_trg_test_support PUBLIC "${_trg_patched_dir}/include")
 set_target_properties(gw2_trg_test_support PROPERTIES CXX_STANDARD 17)
 target_compile_definitions(gw2_trg_test_support PRIVATE _CRT_SECURE_NO_WARNINGS)
+gw2_add_test(player_names_tests)
+target_compile_definitions(player_names_tests PRIVATE GW2_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}/src")
 gw2_add_test(launcher_settings_tests src/launcher_settings.cpp src/launcher_options.cpp)
 gw2_add_test(graphics_adapter_tests src/graphics_adapters.cpp)
 gw2_add_test(diagnostics_tests src/diagnostics.cpp)

@@ -4,7 +4,7 @@ The game's own input (controller, keyboard emulation) is entirely ReXGlue's SDL 
 UI-side input only: launcher/menu navigation, hotkeys, cursor hiding, and input gating while overlays are open.
 
 ## Game input (SDK)
-- Controller: automatic through SDL (first boot log: "Xbox One S Controller" detected). A missing `gamecontrollerdb.txt` is only a warning.
+- Controller: automatic through SDL (first boot log: "Xbox One S Controller" detected). `hid_mappings_file = ""` in config skips the optional `gamecontrollerdb.txt` load with no warning; SDL's built-in mappings still apply.
 - Keyboard/mouse emulation: SDK cvar `mnk_mode` ("Enable keyboard/mouse controller emulation"); the Controls page lists `Input/Keybinds/Controller` entries read-only.
 - Rumble: not implemented at this HEAD. A branch `feature/controller-rumble` has one commit of temporary diagnostic logging (`3e9d942`) and is not part of the reference.
 - Shutdown order: input drivers must be shut down before the window is destroyed, see [13](13-crash-hardening-threading-memory.md).

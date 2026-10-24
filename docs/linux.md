@@ -97,7 +97,7 @@ failure rules.
   [rexglue-gpu-patch.md](rexglue-gpu-patch.md)), and the reporter confirmed it.
 - **The same symptom on a Steam Deck** (about 30 FPS, the music slowing down with it) was traced in this fork to the
   runtime's write-watch fault handler, which searched `/proc/self/maps` for every fault under a global lock, and is
-  fixed by patches 0048 and 0049 ([the details](rexglue-runtime-patch.md#why-0048-and-0049)): 60 to 90 FPS on the
+  fixed by patches 0058 and 0059 ([the details](rexglue-runtime-patch.md#why-0058-and-0059)): 60 to 90 FPS on the
   maintainer's Deck. Whether the Steam Machine report has the same cause is not confirmed. Linux 6.11 or newer answers
   the lookup directly; older kernels use the second patch's path. `--procmap_query=false` forces that path.
 - Controller vibration (Controls > Vibration, off by default) is included in the Linux build but has not been confirmed on a real controller or a Steam Deck.

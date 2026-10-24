@@ -76,6 +76,15 @@ function Get-OfficialSha256($Baseline, [string]$Leaf) {
     return $Baseline["OFFICIAL_WIN_$kind$variant$($lib)_SHA256"]
 }
 
+# Release GPU plugin profile (patch 0053), used when patches\rexglue-sdk-pgo\rexgpu-xenos.profdata exists.
+function Get-RuntimePgo {
+    $profileFile = Join-Path (Split-Path $PSScriptRoot -Parent) 'patches\rexglue-sdk-pgo\rexgpu-xenos.profdata'
+    if (Test-Path -LiteralPath $profileFile -PathType Leaf) {
+        return @{ Mode = "use $(Get-FileSha256 $profileFile)"; Profile = $profileFile }
+    }
+    return @{ Mode = 'off'; Profile = '' }
+}
+
 function Get-VisualStudioRoot {
     $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
     if (-not (Test-Path $vswhere)) { throw 'Visual Studio was not found (vswhere)' }
@@ -97,7 +106,8 @@ function Get-RuntimeInputs {
     $lines = @("sdk_version=$($baseline.SDK_VERSION)", "sdk_tag=$($baseline.SDK_TAG)", "sdk_commit=$($baseline.SDK_COMMIT)",
                "platform=$RexPlatform")
     foreach ($patch in Get-SelectedPatches) { $lines += "patch=$($patch.Name) $(Get-FileSha256 $patch.Path) $($patch.Targets -join ',')" }
-    $lines += @("targets=$((Get-PatchedTargets) -join ' ')", "compiler=$(Get-CompilerIdentity)", "flags=$RexBuildFlags")
+    $lines += @("targets=$((Get-PatchedTargets) -join ' ')", "compiler=$(Get-CompilerIdentity)", "flags=$RexBuildFlags",
+               "pgo=$((Get-RuntimePgo).Mode)")
     return $lines
 }
 

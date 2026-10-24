@@ -3,6 +3,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <iterator>
 #include <mutex>
 
 #include <rex/cvar.h>
@@ -14,6 +15,7 @@
 #include "guest_memory.h"
 #include "online_board.h"
 #include "online_client.h"
+#include "options_menu_rules.h"
 
 REXCVAR_DEFINE_BOOL(gw2_local_live, true, "Geometry Wars",
                     "Serve the game's Xbox Live scores and leaderboards from a local file; nothing goes online")
@@ -96,9 +98,20 @@ bool CreateStatsEnumerator(PPCContext& ctx, uint8_t* base, StatsQuery::Kind kind
   return true;
 }
 
+// One detector per controller the game reads.
+OptionsComboDetector g_options_combo[4];
+
 void FilterGuestInput(PPCContext& ctx, uint8_t* base, uint32_t user, uint32_t state) {
   if (!state || ctx.r3.u32 != 0) return;
-  const uint16_t buttons = LoadBE16(base, state + kInputStateGamepadOffset);
+  uint16_t buttons = LoadBE16(base, state + kInputStateGamepadOffset);
+  if (user < std::size(g_options_combo)) {
+    if (g_options_combo[user].Poll(buttons) && g_bridge.toggle_options) g_bridge.toggle_options();
+    if (g_options_combo[user].held()) {
+      // The game never sees the pair that opens or closes the menu.
+      buttons &= uint16_t(~kOptionsMenuButtons);
+      StoreBE<uint16_t>(base, state + kInputStateGamepadOffset, buttons);
+    }
+  }
   const int thumb_y = static_cast<int16_t>(LoadBE16(base, state + kInputStateGamepadOffset + kThumbLeftYOffset));
   AchievementsOverlayGate::Verdict verdict;
   {

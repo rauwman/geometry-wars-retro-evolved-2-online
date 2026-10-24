@@ -11,6 +11,7 @@
 #include "bloom_rules.h"
 #include "frame_limiter.h"
 #include "internal_render_scale.h"
+#include "launcher_settings.h"
 
 namespace gw2 {
 namespace {
@@ -109,18 +110,13 @@ std::vector<SettingChoice> InternalRenderScaleChoices() {
           {std::to_string(kInternalRenderScaleLowEnd), "50% Low-end"}};
 }
 
-std::vector<SettingChoice> GraphicsAdapterChoices(const std::vector<GraphicsAdapter>& adapters,
-                                                  std::string_view current) {
-  std::vector<SettingChoice> choices{{kGraphicsAdapterAuto, "Automatic (Recommended)"}};
+std::vector<SettingChoice> GraphicsAdapterChoices(const std::vector<GraphicsAdapter>& adapters) {
+  std::vector<SettingChoice> choices;
   for (const GraphicsAdapter& adapter : adapters) {
     const auto same_name = std::count_if(adapters.begin(), adapters.end(),
                                          [&](const GraphicsAdapter& other) { return other.name == adapter.name; });
     const std::string index = std::to_string(adapter.index);
     choices.push_back({index, same_name > 1 ? adapter.name + " (" + index + ")" : adapter.name});
-  }
-  if (const std::optional<int> index = ParseGraphicsAdapter(current);
-      index && ResolveGraphicsAdapter(current, adapters) < 0) {
-    choices.push_back({std::string(current), "Graphics card " + std::to_string(*index) + " (not found)"});
   }
   return choices;
 }
@@ -139,10 +135,38 @@ std::vector<SettingChoice> BloomChoices() {
           {std::string(bloom::ModeName(bloom::Mode::kOff)), "Off"}};
 }
 
+std::vector<SettingChoice> SmoothGlowChoices() {
+  return {{"false", "Off (Original)"}, {"true", "On"}};
+}
+
+std::vector<SettingChoice> HdrChoices() {
+  return {{"false", "Off"}, {"true", "On"}};
+}
+
+std::vector<SettingChoice> HdrPaperWhiteChoices() {
+  std::vector<SettingChoice> choices{{kHdrPaperWhiteAuto, "Windows SDR brightness (Recommended)"}};
+  for (const int nits : {100, 150, 200, 250, 300, 400}) {
+    choices.push_back({std::to_string(nits), std::to_string(nits) + " nits"});
+  }
+  return choices;
+}
+
+std::vector<SettingChoice> HdrPeakChoices() {
+  std::vector<SettingChoice> choices{{kHdrPeakAuto, "Display's peak (Recommended)"}};
+  for (const int nits : {400, 600, 800, 1000, 1500, 2000, 4000}) {
+    choices.push_back({std::to_string(nits), std::to_string(nits) + " nits"});
+  }
+  return choices;
+}
+
 std::vector<SettingChoice> FrameRateChoices() {
   std::vector<SettingChoice> choices;
   for (const int fps : kFrameRates) {
-    choices.push_back({std::to_string(fps), fps == kFrameRateUnlimited ? "Unlimited" : std::to_string(fps)});
+    std::string label = fps == kFrameRateUnlimited ? "Unlimited" : std::to_string(fps);
+    if (fps == 60) {
+      label += " - Original";
+    }
+    choices.push_back({std::to_string(fps), label});
   }
   return choices;
 }

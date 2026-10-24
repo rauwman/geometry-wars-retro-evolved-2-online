@@ -26,6 +26,18 @@ class SameLayout {
   std::vector<int> settings_;
 };
 
+// The runtime with patch 0054: the same members, read through profile_id() (name() is gone).
+class IdAccessor {
+ public:
+  IdAccessor() : xuid_(0xB13EBABEBABEBABEull), name_("User") {}
+  uint64_t xuid() const { return xuid_; }
+  const std::string& profile_id() const { return name_; }
+
+ private:
+  uint64_t xuid_;
+  std::string name_;
+};
+
 // Another layout: the guard must notice.
 class OtherLayout {
  public:
@@ -48,6 +60,11 @@ int main() {
           "16 characters are refused and nothing changes");
     Check(!gw2::SetProfileName(&profile, "") && profile.name() == "123456789012345", "an empty name is refused");
     Check(!gw2::SetProfileName<SameLayout>(nullptr, "x"), "no profile, no change");
+  }
+  {
+    IdAccessor profile;
+    Check(gw2::SetProfileName(&profile, "Yann R") && profile.profile_id() == "Yann R" && profile.xuid() == 0xB13EBABEBABEBABEull,
+          "the name changes through profile_id() as well");
   }
   {
     SameLayout profile;

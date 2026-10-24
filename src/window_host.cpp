@@ -39,6 +39,7 @@
 #include "launcher_cvars.h"
 #include "launcher_settings.h"
 #include "rumble.h"
+#include "unlock_all_modes.h"
 
 // The SDK's VdSwap body, exported by rexruntime.dll. The SDK has no header for it.
 namespace rex::kernel::xboxkrnl {
@@ -346,6 +347,7 @@ REX_HOOK_RAW(__imp__VdSwap) {
   if (!repeat) {
     gw2::PaceGuestFrame();
     gw2::rumble::ServiceFrame(ctx, base);
+    gw2::unlock_all_modes::ServiceFrame(base);
   }
   rex::ppc::HostToGuestFunction<rex::kernel::xboxkrnl::VdSwap_entry>(ctx, base);
   if (repeat) {

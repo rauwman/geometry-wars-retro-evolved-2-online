@@ -2,7 +2,7 @@
 
 # Geometry Wars: Retro Evolved 2 - PC Port
 
-### Modded fork with an optional friends leaderboard
+### Modded fork with a global leaderboard
 
 [![Latest release](https://img.shields.io/github/v/release/rauwman/geometry-wars-retro-evolved-2-recompiled?style=for-the-badge&label=release&color=943cff&labelColor=07101f&cacheSeconds=300)](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/rauwman/geometry-wars-retro-evolved-2-recompiled/total?style=for-the-badge&color=943cff&labelColor=07101f&cacheSeconds=300)](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/releases)
@@ -30,11 +30,11 @@ A server is **not** included and not hosted for you: someone you know has to run
 
 ## Download
 
-**GeometryWarsRetroEvolved2-v1.1.0-windows-x64.zip** from the [latest release](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/releases/latest). The version is the fork's own; this release is based on upstream v0.5.0. The launcher checks this repository's releases for updates.
+**GeometryWarsRetroEvolved2-v1.2.0-windows-x64.zip** from the [latest release](https://github.com/rauwman/geometry-wars-retro-evolved-2-recompiled/releases/latest). The version is the fork's own; this release is based on upstream v0.6.0. The launcher checks this repository's releases for updates.
 
 You need Windows 10 or 11 (64-bit), a DirectX 12 graphics card and **your own Geometry Wars: Retro Evolved 2 Xbox Live Arcade package**. Extract the ZIP, run `geometry_wars_retro_evolved_2.exe` and install the game from your package on the launcher's **Play** page. The exact game version, launcher pages, saves and troubleshooting are in the [full manual](docs/manual.md).
 
-**Linux / Steam Deck (native, tested on one Steam Deck):** download **GeometryWarsRetroEvolved2Recompiled-v1.1.0-x86_64.tar.gz** from the same release and unpack it (the unpacked AppImage starts with a double click; a bare AppImage download first needs "Is executable" under Properties > Permissions). The game files go into a `game` folder next to the AppImage, installed from your package on the launcher's **Play** page. Steps for the Steam Deck, requirements and known limits are in [docs/linux.md](docs/linux.md). The friends leaderboard is built into it too (it needs the system `libcurl.so.4`).
+**Linux / Steam Deck (native, tested on one Steam Deck):** download **GeometryWarsRetroEvolved2Recompiled-v1.2.0-x86_64.tar.gz** from the same release and unpack it (the unpacked AppImage starts with a double click; a bare AppImage download first needs "Is executable" under Properties > Permissions). The game files go into a `game` folder next to the AppImage, installed from your package on the launcher's **Play** page. Steps for the Steam Deck, requirements and known limits are in [docs/linux.md](docs/linux.md). The friends leaderboard is built into it too (it needs the system `libcurl.so.4`).
 
 ## More
 

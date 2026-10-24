@@ -78,7 +78,7 @@ The Linux build talks to the server through the system `libcurl.so.4` (loaded wh
   The boards come from the server in the background (at start, when a leaderboard is opened, after each upload and
   every 30 seconds); the screen never waits for the network. Without a connection the game shows your own scores, as
   offline. The game asks for its friends once, when it starts, so a new friend appears after the next start.
-- **Your name:** the name shown under the menus and in the leaderboards is your online name. This replaces the
+- **Your name:** the name shown under the menus, on the Multiplayer screen for player 1 and in the leaderboards is your online name. With an online account it replaces the **Player 1** name of the launcher's Options; signed out, that setting applies again. The other players' names are not touched. This replaces the
   runtime's fixed profile name "User" in memory only; saves and settings are untouched. The runtime keeps the game's
   progress in a folder named after the profile, so at start the folder of your online name receives the newest progress
   found under any name: a new or renamed account keeps playing where this installation left off.

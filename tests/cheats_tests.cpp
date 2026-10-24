@@ -15,6 +15,7 @@
 #include "cheat_menu_rules.h"
 #include "cheat_rules.h"
 #include "cheats.h"
+#include "debug_bomb.h"
 
 namespace fs = std::filesystem;
 using namespace gw2;
@@ -306,8 +307,10 @@ void TestCheatsAreWiredToOneState() {
 
   const std::string menu = ReadSource("cheat_menu.cpp");
   CHECK(menu.find("kCheatMenuRows") != std::string::npos);
-  CHECK(menu.find("cheats::Enabled(row.cheat)") != std::string::npos);
-  CHECK(menu.find("cheats::ToggleForSession(row.cheat)") != std::string::npos);
+  CHECK(menu.find("cheats::Enabled(kCheatMenuRows[i].cheat)") != std::string::npos);
+  CHECK(menu.find("cheats::ToggleForSession(kCheatMenuRows[i].cheat)") != std::string::npos);
+  CHECK(Count(menu, "cheats::CycleMovementSpeedForSession()") == 1);
+  CHECK(Count(menu, "cheats::kMovementSpeedLabel") == 1);
 
   const std::string settings = ReadSource("launcher_settings.cpp");
   for (const char* key : {"kInvincibleKey", "kInfiniteShieldKey", "kInfiniteBombsKey"}) {
@@ -331,7 +334,7 @@ void TestHookWiring() {
   Section("gameplay hooks");
   const std::string hooks = ReadSource("cheat_hooks.cpp");
   CHECK(!hooks.empty());
-  for (const char* function : {"sub_8204F288", "sub_8204FF00", "sub_8204EEA8"}) {
+  for (const char* function : {"sub_8204F288", "sub_8204FF00", "sub_8204EEA8", "sub_820453E0"}) {
     const std::string name = function;
     CHECK(Count(hooks, "REX_HOOK_RAW(" + name + ")") == 1);
     CHECK(Count(hooks, "REX_EXTERN(__imp__" + name + ")") == 1);
@@ -359,7 +362,8 @@ void TestHookWiring() {
   for (const char* untouched : {"achievement", "Achievement", "live_stats", "local_stats", "leaderboard", "score"}) {
     CHECK(hooks.find(untouched) == std::string::npos);
   }
-  CHECK(CountInSources("REXCVAR_GET(gw2_cheat_") == 3);
+  CHECK(CountInSources("REXCVAR_GET(gw2_cheat_") == 5);
+  CHECK(Count(hooks, "gw2::cheats::MovementSpeed()") == 1);
 }
 
 void TestAchievementsOverlayWiring() {
@@ -397,11 +401,216 @@ void TestHotkeys() {
   CHECK(CountInSources("kF11") == 1);
   CHECK(ReadSource("window_host.cpp").find("e.virtual_key() != rex::ui::VirtualKey::kF11") != std::string::npos);
 
+  CHECK(CountInSources("kF9") == 1);
+  CHECK(CountInSourcesExcluding("\"F9\"", "keybinds.h") == 0);
+  CHECK(CountInSources("debug_bomb::RequestBomb()") == 1);
+
   CHECK(CountInSources("kF7") == 0);
   CHECK(CountInSourcesExcluding("\"F7\"", "keybinds.h") == 0);
   CHECK(CountInSources("bind_achievements") == 0);
   CHECK(ReadSource("geometry_wars_retro_evolved_2_app.h").find("CreateAchievementsOverlay() override") !=
         std::string::npos);
+}
+
+
+void TestMovementSpeedChoices() {
+  Section("movement speed choices");
+  CHECK(std::string_view(kMovementSpeedKey) == "gw2_cheat_movement_speed");
+  CHECK(std::string_view(kMovementSpeedLabel) == "Movement Speed");
+  CHECK(kMovementSpeedDefault == kMovementSpeedOff);
+  CHECK(kMovementSpeedOff == 1);
+  CHECK(std::size(kMovementSpeeds) == 3);
+  CHECK(kMovementSpeeds[0].value == 1 && std::string_view(kMovementSpeeds[0].label) == "Off");
+  CHECK(kMovementSpeeds[1].value == 2 && std::string_view(kMovementSpeeds[1].label) == "2x");
+  CHECK(kMovementSpeeds[2].value == 4 && std::string_view(kMovementSpeeds[2].label) == "4x");
+
+  for (const int saved : {1, 2, 4}) {
+    CHECK(ParseMovementSpeed(saved) == saved);
+  }
+  for (const int corrupt : {0, -1, 3, 5, 8, 100, std::numeric_limits<int>::min(), std::numeric_limits<int>::max()}) {
+    CHECK(ParseMovementSpeed(corrupt) == kMovementSpeedOff);
+    CHECK(std::string_view(MovementSpeedLabel(corrupt)) == "Off");
+    CHECK(NextMovementSpeed(corrupt) == 2);
+  }
+  CHECK(NextMovementSpeed(1) == 2);
+  CHECK(NextMovementSpeed(2) == 4);
+  CHECK(NextMovementSpeed(4) == 1);
+  CHECK(std::string_view(MovementSpeedLabel(2)) == "2x");
+  CHECK(std::string_view(MovementSpeedLabel(4)) == "4x");
+}
+
+void TestMovementSpeedSession() {
+  Section("movement speed session override");
+  for (const int saved : {1, 2, 4}) {
+    SessionMovementSpeed session;
+    CHECK(session.Effective(saved) == saved);
+  }
+  SessionMovementSpeed corrupt;
+  CHECK(corrupt.Effective(7) == kMovementSpeedOff);
+
+  SessionMovementSpeed session;
+  const int saved = 1;
+  CHECK(session.Effective(saved) == 1);
+  session.Cycle(saved);
+  CHECK(session.Effective(saved) == 2);
+  session.Cycle(saved);
+  CHECK(session.Effective(saved) == 4);
+  session.Cycle(saved);
+  CHECK(session.Effective(saved) == 1);
+
+  // An override never changes the saved value; set back to it, the session follows the saved value again.
+  session.Set(saved, 4);
+  CHECK(session.Effective(saved) == 4);
+  CHECK(session.Effective(2) == 4);
+  session.Set(saved, saved);
+  CHECK(session.Effective(2) == 2);
+
+  SessionMovementSpeed from_saved;
+  from_saved.Cycle(4);
+  CHECK(from_saved.Effective(4) == 1);
+  from_saved.Cycle(4);
+  CHECK(from_saved.Effective(4) == 2);
+  from_saved.Cycle(4);
+  CHECK(from_saved.Effective(4) == 4);
+  CHECK(from_saved.Effective(1) == 1);
+}
+
+void TestMovementSpeedWiring() {
+  Section("movement speed wiring");
+  const std::string cheats_cpp = ReadSource("cheats.cpp");
+  CHECK(Count(cheats_cpp, "REXCVAR_DEFINE_INT32(gw2_cheat_movement_speed, gw2::cheats::kMovementSpeedDefault,") == 1);
+  CHECK(Count(cheats_cpp, "REXCVAR_GET(gw2_cheat_movement_speed)") == 2);
+  CHECK(CountInSources("\"gw2_cheat_movement_speed\"") == 1);
+  CHECK(CountInSources("\"Movement Speed\"") == 1);
+
+  const std::string launcher = ReadSource("launcher.cpp");
+  CHECK(Count(launcher, "ui.Choice(cheats::kMovementSpeedLabel, cheats::kMovementSpeedDescription, "
+                        "cheats::kMovementSpeedKey,") == 1);
+  CHECK(Count(launcher, "for (const cheats::MovementSpeedChoice& speed : cheats::kMovementSpeeds)") == 1);
+  CHECK(Count(ReadSource("launcher_settings.cpp"), "{cheats::kMovementSpeedKey, ValueKind::kInt}") == 1);
+}
+
+void TestVelocityScaling() {
+  Section("velocity scaling");
+  CHECK(kEntityVelocityXOffset == 0xC && kEntityVelocityYOffset == 0x10);
+  for (const float velocity : {0.0f, 1.0f, -3.5f, 123.456f, -0.001f, 1.0e-30f}) {
+    CHECK(ScaledVelocity(velocity, 1) == velocity);
+    CHECK(ScaledVelocity(velocity, 2) == velocity * 2.0f);
+    CHECK(ScaledVelocity(velocity, 4) == velocity * 4.0f);
+    for (const int speed : {1, 2, 4}) {
+      CHECK(UnscaledVelocity(ScaledVelocity(velocity, speed), speed) == velocity);
+    }
+  }
+
+  // Off runs Entity::Tick unchanged, and only a player's tick is ever scaled.
+  const std::string hooks = ReadSource("cheat_hooks.cpp");
+  const size_t tick = hooks.find("REX_HOOK_RAW(sub_820453E0)");
+  CHECK(tick != std::string::npos);
+  CHECK(hooks.find("IsPlayer(base, entity) ? gw2::cheats::MovementSpeed() : gw2::cheats::kMovementSpeedOff", tick) !=
+        std::string::npos);
+  CHECK(hooks.find("if (moves_faster) {\n    g_movement = {entity, speed, false};\n  }\n"
+                   "  __imp__sub_820453E0(ctx, base);\n  if (!moves_faster) {\n    return;",
+                   tick) != std::string::npos);
+  CHECK(hooks.find("g_movement.player == player && !g_movement.scaled") != std::string::npos);
+  CHECK(Count(hooks, "ScaleVelocity(base, ") == 2);
+  for (const char* untouched : {"kFrameRate", "frame_limiter", "-11648", "0x8219D280"}) {
+    CHECK(hooks.find(untouched) == std::string::npos);
+  }
+}
+
+void TestModeBombRule() {
+  Section("mode bomb rule");
+  CHECK(kModeStartBombsAddress == 0x8219D268);
+  CHECK(kModeFlagsAddress == 0x8219D26C);
+  CHECK(ModeRefusesBombs(0, kModeNoBombsFlag));
+  CHECK(ModeRefusesBombs(0, 0x7));
+  CHECK(ModeRefusesBombs(-1, 0x3));
+  CHECK(!ModeRefusesBombs(0, 0x1));
+  CHECK(!ModeRefusesBombs(0, 0));
+  CHECK(!ModeRefusesBombs(3, 0x3));
+  CHECK(!ModeRefusesBombs(1, kModeNoBombsFlag));
+}
+
+void TestDebugBombRequests() {
+  Section("debug bomb requests");
+  debug_bomb::Requests idle;
+  CHECK(!idle.Request(1.0));
+  CHECK(idle.Take(1.0) == 0);
+
+  debug_bomb::Requests requests;
+  requests.PlayerUpdated(10.0);
+  CHECK(requests.Request(10.01));
+  CHECK(requests.Take(10.02) == 1);
+  CHECK(requests.Take(10.03) == 0);
+
+  requests.PlayerUpdated(20.0);
+  CHECK(requests.Request(20.001));
+  CHECK(requests.Request(20.002));
+  CHECK(requests.Take(20.016) == 2);
+
+  requests.PlayerUpdated(30.0);
+  CHECK(!requests.Request(30.0 + debug_bomb::kActiveSeconds + 0.1));
+  CHECK(requests.Take(31.0) == 0);
+
+  requests.PlayerUpdated(40.0);
+  CHECK(requests.Request(40.1));
+  CHECK(requests.Take(40.1 + debug_bomb::kActiveSeconds + 1.0) == 0);
+  CHECK(requests.Take(42.0) == 0);
+
+  // A held key repeats with the previous state set; only the first press reaches RequestBomb.
+  const std::string menu = ReadSource("cheat_menu.cpp");
+  const size_t f9 = menu.find("key == rex::ui::VirtualKey::kF9");
+  CHECK(f9 != std::string::npos);
+  CHECK(menu.find("if (!e.prev_state() && !g_dialog) {\n        debug_bomb::RequestBomb();", f9) != std::string::npos);
+}
+
+void TestDebugBombGrants() {
+  Section("debug bomb grants");
+  debug_bomb::Grants grants;
+  CHECK(!grants.LiftsNoBombsRule(0, true, 0));
+  CHECK(!grants.LiftsNoBombsRule(0, true, 3));
+  CHECK(grants.Granted(0) == 0);
+
+  grants.Grant(0, 1);
+  CHECK(grants.Granted(0) == 1);
+  CHECK(!grants.LiftsNoBombsRule(0, false, 1));
+  CHECK(grants.LiftsNoBombsRule(0, true, 1));
+  CHECK(!grants.LiftsNoBombsRule(1, true, 1));
+  grants.BombFired(0);
+  CHECK(grants.Granted(0) == 0);
+  CHECK(!grants.LiftsNoBombsRule(0, true, 1));
+  grants.BombFired(0);
+  CHECK(grants.Granted(0) == 0);
+
+  grants.Grant(0, 2);
+  CHECK(!grants.LiftsNoBombsRule(0, true, 0));
+  CHECK(grants.Granted(0) == 0);
+
+  grants.Grant(2, 3);
+  CHECK(grants.LiftsNoBombsRule(2, true, 1));
+  CHECK(grants.Granted(2) == 1);
+
+  grants.Grant(debug_bomb::kMaxPlayers, 1);
+  CHECK(grants.Granted(debug_bomb::kMaxPlayers) == 0);
+  CHECK(!grants.LiftsNoBombsRule(debug_bomb::kMaxPlayers, true, 1));
+
+  const std::string hooks = ReadSource("cheat_hooks.cpp");
+  CHECK(Count(hooks, "gw2::LoadBE32(base, counter) + bombs") == 1);
+  CHECK(Count(hooks, "grants.BombFired(index)") == 1);
+  CHECK(Count(hooks, "flags & ~gw2::cheats::kModeNoBombsFlag") == 1);
+  CHECK(Count(hooks, "| gw2::cheats::kModeNoBombsFlag") == 1);
+}
+
+void TestDebugBombIsHidden() {
+  Section("debug bomb stays hidden");
+  for (const char* file : {"launcher.cpp", "launcher_options.cpp", "launcher_settings.cpp", "cheat_menu_rules.h",
+                           "cheats.h", "diagnostics.cpp", "keybinds.h"}) {
+    const std::string text = ReadSource(file);
+    CHECK(text.find("debug_bomb") == std::string::npos);
+    CHECK(text.find("\"F9") == std::string::npos || std::string(file) == "keybinds.h");
+  }
+  CHECK(CountInSources("gw2_debug_bomb") == 0);
+  CHECK(ReadSource("debug_bomb.cpp").find("REXCVAR") == std::string::npos);
 }
 
 }  // namespace
@@ -421,6 +630,14 @@ int main() {
   TestHookWiring();
   TestAchievementsOverlayWiring();
   TestHotkeys();
+  TestMovementSpeedChoices();
+  TestMovementSpeedSession();
+  TestMovementSpeedWiring();
+  TestVelocityScaling();
+  TestModeBombRule();
+  TestDebugBombRequests();
+  TestDebugBombGrants();
+  TestDebugBombIsHidden();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;
 }

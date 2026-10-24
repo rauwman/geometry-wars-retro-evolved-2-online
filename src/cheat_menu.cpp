@@ -14,11 +14,14 @@
 #include <rex/ui/window_listener.h>
 
 #include "achievements_overlay_rules.h"
+#include "add_lives.h"
 #include "cheat_menu_rules.h"
 #include "cheats.h"
+#include "debug_bomb.h"
 #include "imgui_gamepad.h"
 #include "launcher.h"
 #include "live_fix.h"
+#include "options_menu.h"
 
 namespace gw2 {
 namespace {
@@ -132,7 +135,18 @@ class CheatMenuDialog final : public rex::ui::ImGuiDialog {
       ImGui::PopFont();
       ImGui::Separator();
       for (size_t i = 0; i < kCheatMenuRows.size(); ++i) {
-        DrawRow(kCheatMenuRows[i], i, accent, focus);
+        const bool on = cheats::Enabled(kCheatMenuRows[i].cheat);
+        if (DrawRow(kCheatMenuRows[i].label, on ? "On" : "Off", on, i, accent, focus)) {
+          cheats::ToggleForSession(kCheatMenuRows[i].cheat);
+        }
+      }
+      const int speed = cheats::MovementSpeed();
+      if (DrawRow(cheats::kMovementSpeedLabel, cheats::MovementSpeedLabel(speed),
+                  speed != cheats::kMovementSpeedOff, kCheatMenuRows.size(), accent, focus)) {
+        cheats::CycleMovementSpeedForSession();
+      }
+      if (DrawRow(kAddLivesLabel, kAddLivesState, false, kCheatMenuRows.size() + 1, accent, focus)) {
+        add_lives::Request();
       }
       ImGui::Separator();
       ImGui::TextColored(kDim, "%s", kCheatMenuCloseHint);
@@ -144,7 +158,9 @@ class CheatMenuDialog final : public rex::ui::ImGuiDialog {
     ImGui::PopFont();
   }
 
-  void DrawRow(const CheatMenuRow& row, size_t index, const ImVec4& accent, const ImVec4& focus) {
+  // True when the row was activated.
+  bool DrawRow(const char* label, const char* state, bool on, size_t index, const ImVec4& accent,
+               const ImVec4& focus) {
     const float height = ImGui::GetFrameHeight() + 4.0f;
     ImGui::PushID(int(index));
     const bool pressed = ImGui::Selectable("##row", false, ImGuiSelectableFlags_None, ImVec2(0.0f, height));
@@ -159,15 +175,11 @@ class CheatMenuDialog final : public rex::ui::ImGuiDialog {
     }
     const float pad = ImGui::GetFontSize() * 0.4f;
     const float y = min.y + (height - ImGui::GetFontSize()) * 0.5f;
-    const bool on = cheats::Enabled(row.cheat);
-    const char* state = on ? "On" : "Off";
-    draw->AddText(ImVec2(min.x + pad, y), ImGui::GetColorU32(ImGuiCol_Text), row.label);
+    draw->AddText(ImVec2(min.x + pad, y), ImGui::GetColorU32(ImGuiCol_Text), label);
     draw->AddText(ImVec2(max.x - pad - ImGui::CalcTextSize(state).x, y), ImGui::GetColorU32(on ? accent : kDim),
                   state);
     ImGui::PopID();
-    if (pressed) {
-      cheats::ToggleForSession(row.cheat);
-    }
+    return pressed;
   }
 
   ImGuiGamepad gamepad_;
@@ -201,6 +213,11 @@ class CheatMenuKeys final : public rex::ui::WindowInputListener {
       e.set_handled(true);
       if (!e.prev_state()) {
         ToggleMenu();
+      }
+    } else if (key == rex::ui::VirtualKey::kF9) {
+      e.set_handled(true);
+      if (!e.prev_state() && !g_dialog) {
+        debug_bomb::RequestBomb();
       }
     } else if (key == rex::ui::VirtualKey::kEscape && g_dialog) {
       e.set_handled(true);
@@ -242,7 +259,7 @@ bool CheatMenuOpen() {
 bool GameInputActive() {
   rex::ui::ImGuiDrawer* drawer = g_drawer.load(std::memory_order_acquire);
   const bool pointer_over_overlay = drawer && drawer->HasDialogs() && drawer->GetIO().WantCaptureMouse;
-  return GameInputAllowed(CheatMenuOpen(), live::AchievementsHoldInput(), pointer_over_overlay);
+  return GameInputAllowed(CheatMenuOpen() || OptionsMenuOpen(), live::AchievementsHoldInput(), pointer_over_overlay);
 }
 
 }  // namespace gw2

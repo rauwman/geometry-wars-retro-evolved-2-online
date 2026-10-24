@@ -112,6 +112,14 @@ std::filesystem::path DiscardMarker(const std::filesystem::path& file) {
   return marker;
 }
 
+void RemoveOrMark(const std::filesystem::path& file) {
+  std::error_code ec;
+  std::filesystem::remove(file, ec);
+  if (ec) {
+    std::ofstream(DiscardMarker(file), std::ios::binary | std::ios::trunc);
+  }
+}
+
 }  // namespace
 
 void InstallSessionLogCleanup() {
@@ -130,8 +138,7 @@ void FinalizeSessionLog() {
   }
   ReleaseMinimalLogFilter();
   rex::ShutdownLogging();
-  std::error_code ec;
-  std::filesystem::remove(file, ec);
+  RemoveOrMark(file);
 }
 
 void DiscardSessionLogBeforeHardExit() {
@@ -139,12 +146,11 @@ void DiscardSessionLogBeforeHardExit() {
   if (file.empty()) {
     return;
   }
-#if defined(_WIN32)
-  std::ofstream(DiscardMarker(file), std::ios::binary | std::ios::trunc);
-#else
-  std::error_code ec;
-  std::filesystem::remove(file, ec);
-#endif
+  if (!CloseLogFile()) {
+    std::ofstream(DiscardMarker(file), std::ios::binary | std::ios::trunc);
+    return;
+  }
+  RemoveOrMark(file);
 }
 
 void RemoveDiscardedSessionLogs() {

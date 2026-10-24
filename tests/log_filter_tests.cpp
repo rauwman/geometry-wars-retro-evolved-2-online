@@ -3,6 +3,7 @@
 // Detailed logging is off. Run: gw2_log_filter_tests
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -287,7 +288,7 @@ void TestSessionLifecycle(const std::filesystem::path& dir) {
 }
 
 void TestHardExitDiscard(const std::filesystem::path& dir) {
-  std::printf("a window close discards a Minimal log without shutting logging down\n");
+  std::printf("a window close without a releasable log file leaves a .discard marker for the next start\n");
   const std::filesystem::path closed = dir / "closed.log";
   const std::filesystem::path crashed = dir / "closed_crash.log";
   const std::filesystem::path next = dir / "next.log";
@@ -302,11 +303,9 @@ void TestHardExitDiscard(const std::filesystem::path& dir) {
   gw2::DiscardSessionLogBeforeHardExit();
   CHECK(std::filesystem::exists(crashed));
   CHECK(!std::filesystem::exists(dir / "closed_crash.log.discard"));
-#if defined(_WIN32)
   CHECK(std::filesystem::exists(closed));
   CHECK(std::filesystem::exists(dir / "closed.log.discard"));
   WriteText(dir / "next.log.discard", "");
-#endif
 
   rex::cvar::SetFlagByName("log_file", next.string());
   gw2::RemoveDiscardedSessionLogs();
@@ -378,7 +377,66 @@ bool WaitForLogText(const std::filesystem::path& dir, const char* needle) {
   return false;
 }
 
+// Exit codes name the failed expectation: the parent only sees the process result.
+int RunHardExitChild(const std::wstring& mode, const std::filesystem::path& dir) {
+  rex::LogConfig config;
+  config.app_name = "gw2_hardexit";
+  config.log_dir = dir.string();
+  config.default_level = spdlog::level::info;
+  rex::InitLogging(config);
+  SetDetailedLogging(mode == L"hardexit-detailed");
+  REXLOG_INFO("Geometry Wars: Retro Evolved 2 port 0.4.0");
+  const std::filesystem::path active = gw2::ActiveLogFile();
+  if (active.empty() || !std::filesystem::exists(active)) {
+    return 10;
+  }
+  std::filesystem::path marker = active;
+  marker += ".discard";
+
+  if (mode == L"hardexit-crash") {
+    REXLOG_ERROR("CRASH REPORT");
+  }
+  if (mode == L"hardexit-handoff") {
+    gw2::BeginSessionLogHandoff();
+  }
+  std::ifstream held;
+  if (mode == L"hardexit-locked") {
+    held.open(active, std::ios::binary);
+  }
+
+  std::atomic<bool> stop{false};
+  std::vector<std::thread> loggers;
+  for (int i = 0; i < 4; ++i) {
+    loggers.emplace_back([&stop] {
+      while (!stop.load()) {
+        REXLOG_WARN("worker warning");
+        std::this_thread::yield();
+      }
+    });
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  gw2::DiscardSessionLogBeforeHardExit();
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  stop.store(true);
+  for (std::thread& logger : loggers) {
+    logger.join();
+  }
+
+  const bool exists = std::filesystem::exists(active);
+  const bool marked = std::filesystem::exists(marker);
+  if (mode == L"hardexit-minimal") {
+    return exists ? 11 : (marked ? 12 : 0);
+  }
+  if (mode == L"hardexit-locked") {
+    return !exists ? 13 : (!marked ? 14 : 0);
+  }
+  return !exists ? 15 : (marked ? 16 : 0);
+}
+
 int RunChildMode(const std::wstring& mode, const std::filesystem::path& dir) {
+  if (mode.rfind(L"hardexit-", 0) == 0) {
+    return RunHardExitChild(mode, dir);
+  }
   if (mode == L"handoff-child") {
     const auto inherited = gw2::TakeInheritedSessionLog();
     if (!inherited) {
@@ -408,6 +466,56 @@ int RunChildMode(const std::wstring& mode, const std::filesystem::path& dir) {
     return 2;
   }
   return 0;
+}
+
+std::vector<std::string> FilesWithExtension(const std::filesystem::path& dir, const char* extension) {
+  std::vector<std::string> names;
+  for (const auto& entry : std::filesystem::directory_iterator(dir)) {
+    if (entry.is_regular_file() && entry.path().extension() == extension) {
+      names.push_back(entry.path().filename().string());
+    }
+  }
+  return names;
+}
+
+void TestHardExitReleasesLog(const std::filesystem::path& root) {
+  std::printf("a window close closes and deletes a Minimal log at once, whatever else is in the folder\n");
+  const std::filesystem::path dir = root / "hardexit";
+  std::filesystem::create_directories(dir);
+  WriteText(dir / "older_session.log", "previous session\n");
+  WriteText(dir / "notes.txt", "unrelated\n");
+  const auto run = [&dir](const wchar_t* mode) {
+    return RunChild(std::wstring(L"--child ") + mode + L" \"" + dir.wstring() + L"\"");
+  };
+
+  for (int cycle = 0; cycle < 3; ++cycle) {
+    CHECK(run(L"hardexit-minimal") == 0);
+    CHECK(FilesWithExtension(dir, ".log").size() == 1);
+    CHECK(FilesWithExtension(dir, ".discard").empty());
+  }
+
+  CHECK(run(L"hardexit-detailed") == 0);
+  CHECK(FilesWithExtension(dir, ".log").size() == 2);
+  CHECK(run(L"hardexit-crash") == 0);
+  CHECK(FilesWithExtension(dir, ".log").size() == 3);
+  CHECK(run(L"hardexit-handoff") == 0);
+  CHECK(FilesWithExtension(dir, ".log").size() == 4);
+  CHECK(FilesWithExtension(dir, ".discard").empty());
+
+  CHECK(run(L"hardexit-locked") == 0);
+  CHECK(FilesWithExtension(dir, ".log").size() == 5);
+  CHECK(FilesWithExtension(dir, ".discard").size() == 1);
+
+  const std::filesystem::path next = dir / "next.log";
+  WriteText(next, "next session\n");
+  rex::cvar::SetFlagByName("log_file", next.string());
+  gw2::RemoveDiscardedSessionLogs();
+  rex::cvar::SetFlagByName("log_file", "");
+  CHECK(FilesWithExtension(dir, ".log").size() == 5);
+  CHECK(FilesWithExtension(dir, ".discard").empty());
+  CHECK(std::filesystem::exists(dir / "older_session.log"));
+  CHECK(std::filesystem::exists(dir / "notes.txt"));
+  CHECK(std::filesystem::exists(next));
 }
 
 void TestHandoff(const std::filesystem::path& root) {
@@ -461,6 +569,7 @@ void TestWiring() {
   CHECK(Has(session, "DetailedLoggingEnabled()"));
   CHECK(Has(session, "CRASH REPORT"));
   CHECK(Has(session, "ShutdownLogging()"));
+  CHECK(Has(session, "CloseLogFile()"));
   CHECK(Has(session, "GW2_SESSION_LOG"));
   CHECK(!Has(session, "remove_all"));
 }
@@ -494,6 +603,7 @@ int main() {
   TestHardExitDiscard(dir);
 #if defined(_WIN32)
   TestHandoff(dir);
+  TestHardExitReleasesLog(dir);
 #endif
   TestWiring();
 

@@ -2,11 +2,13 @@
 // interpolation policy and scheduler at 30 to 240 and Unlimited cadences, and previous/current object history.
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdio>
 #include <vector>
 
 #include "frame_limiter.h"
+#include "guest_memory.h"
 #include "visual_interpolation.h"
 
 using namespace gw2;
@@ -567,6 +569,93 @@ void TestHistory() {
   CHECK(result.override_value);
 }
 
+void TestOrientationSafety() {
+  Section("orientation safety");
+  CHECK(!IsOrientationDiscontinuity(Sample(0, 0, 0.0f), Sample(0, 0, 0.5f)));
+  CHECK(!IsOrientationDiscontinuity(Sample(0, 0, 3.0f), Sample(0, 0, -3.0f)));
+  CHECK(IsOrientationDiscontinuity(Sample(0, 0, 0.0f), Sample(0, 0, kPi)));
+  CHECK(IsOrientationDiscontinuity(Sample(0, 0, 0.0f, 1.0f, 1.0f), Sample(0, 0, 0.0f, -1.0f, 1.0f)));
+  CHECK(IsOrientationDiscontinuity(Sample(0, 0, 0.0f, 1.0f, 1.0f), Sample(0, 0, 0.0f, 1.0f, -1.0f)));
+  CHECK(!IsOrientationDiscontinuity(Sample(0, 0, 0.0f, 1.0f, 1.0f), Sample(0, 0, 0.0f, 2.0f, 0.5f)));
+
+  TransformHistory history;
+  history.Update(0x1000, 7, 1, 1, Sample(0, 0, 0.0f), 0.5f, 8.0f);
+  TransformHistory::Result result = history.Update(0x1000, 7, 2, 1, Sample(1, 0, 0.2f), 0.5f, 8.0f);
+  CHECK(!result.snapped);
+  CHECK(result.override_value);
+  CHECK(Near(result.value.angle, 0.1f));
+
+  result = history.Update(0x1000, 7, 3, 1, Sample(2, 0, kPi), 0.5f, 8.0f);
+  CHECK(result.snapped);
+  CHECK(!result.override_value);
+  CHECK(Near(result.value.angle, kPi));
+
+  result = history.Update(0x1000, 7, 4, 1, Sample(3, 0, kPi), 0.5f, 8.0f);
+  CHECK(result.override_value);
+  CHECK(Near(result.value.x, 2.5f));
+
+  TransformHistory mirrored;
+  mirrored.Update(0x2000, 7, 1, 1, Sample(0, 0, 0.0f, 1.0f, 1.0f), 0.5f, 8.0f);
+  result = mirrored.Update(0x2000, 7, 2, 1, Sample(1, 0, 0.0f, -1.0f, 1.0f), 0.5f, 8.0f);
+  CHECK(result.snapped);
+  CHECK(!result.override_value);
+}
+
+void TestRepeatedDraw() {
+  Section("repeated draw in one tick");
+  TransformHistory history;
+  history.Update(0x1000, 7, 1, 1, Sample(0, 0), 0.5f, 8.0f);
+  TransformHistory::Result result = history.Update(0x1000, 7, 2, 1, Sample(2, 0), 0.5f, 8.0f);
+  CHECK(result.override_value);
+  CHECK(Near(result.value.x, 1.0f));
+
+  result = history.Update(0x1000, 7, 2, 1, Sample(2, 0, 0.0f, 3.0f, 3.0f), 0.5f, 8.0f);
+  CHECK(!result.override_value);
+  CHECK(Near(result.value.scale_x, 3.0f));
+
+  result = history.Update(0x1000, 7, 2, 1, Sample(2, 0), 0.75f, 8.0f);
+  CHECK(result.override_value);
+  CHECK(Near(result.value.x, 1.5f));
+}
+
+void TestObjectOverride() {
+  Section("object override restore");
+  constexpr uint32_t kObject = 0x100;
+  std::vector<uint8_t> memory(0x400, 0);
+  uint8_t* base = memory.data();
+  auto store = [&](uint32_t offset, float value) { StoreBE32(base, kObject + offset, std::bit_cast<uint32_t>(value)); };
+  auto load = [&](uint32_t offset) { return std::bit_cast<float>(LoadBE32(base, kObject + offset)); };
+  auto place = [&](float x, float angle) {
+    store(4, x);
+    store(8, 0.0f);
+    store(20, angle);
+    store(24, 1.0f);
+    store(28, 1.0f);
+    StoreBE32(base, kObject + 68, 5);
+  };
+
+  VisualInterpolationSimulationTick(1.0, 0.0);
+  VisualInterpolationBeginFrame(1.0, InterpolationPolicy::kOn, 1.0 / 60.0, 1.0 / 120.0);
+  place(0.0f, 0.0f);
+  ObjectTransformOverride first = VisualInterpolationPrepareObject(base, kObject);
+  CHECK(!first.active);
+
+  VisualInterpolationSimulationTick(1.0 + 1.0 / 60.0, 0.0);
+  VisualInterpolationBeginFrame(1.0 + 1.0 / 60.0, InterpolationPolicy::kOn, 1.0 / 60.0, 1.0 / 120.0);
+  place(2.0f, 0.0f);
+  ObjectTransformOverride second = VisualInterpolationPrepareObject(base, kObject);
+  CHECK(second.active);
+  CHECK(Near(load(4), 0.0f));
+  VisualInterpolationRestoreObject(base, second);
+  CHECK(Near(load(4), 2.0f));
+
+  second = VisualInterpolationPrepareObject(base, kObject);
+  store(24, 4.0f);
+  VisualInterpolationRestoreObject(base, second);
+  CHECK(Near(load(4), 2.0f));
+  CHECK(Near(load(24), 4.0f));
+}
+
 }  // namespace
 
 int main() {
@@ -581,6 +670,9 @@ int main() {
   TestUnlimited();
   TestStalls();
   TestHistory();
+  TestOrientationSafety();
+  TestRepeatedDraw();
+  TestObjectOverride();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;
 }

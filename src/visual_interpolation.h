@@ -22,6 +22,9 @@ TransformSample InterpolateTransform(const TransformSample& previous, const Tran
 
 bool IsTransformDiscontinuity(const TransformSample& previous, const TransformSample& current, float max_distance);
 
+// A turn too large to interpolate along one path, or a scale that flips sign.
+bool IsOrientationDiscontinuity(const TransformSample& previous, const TransformSample& current);
+
 // kOn: a fixed rate above 60 renders frames between the 60 Hz updates, so it interpolates from the first frame.
 // kMeasured: Unlimited has no target; it also starts on, and turns off while the guest renders no faster than the
 // simulation, where interpolation would only add latency.
@@ -120,6 +123,7 @@ struct ObjectTransformOverride {
   uint32_t object = 0;
   bool active = false;
   TransformSample saved;
+  TransformSample written;
 };
 
 void VisualInterpolationSimulationTick(double now, double remainder);

@@ -11,6 +11,10 @@ inline constexpr char kCheatMenuTitle[] = "CHEATS";
 inline constexpr char kCheatMenuCloseHint[] = "F10 Close";
 inline constexpr char kCheatMenuNote[] = "Not saved to the launcher";
 
+// An instant action rather than a toggle: it always shows "Add", never On/Off.
+inline constexpr char kAddLivesLabel[] = "Add 100 Lives";
+inline constexpr char kAddLivesState[] = "Add";
+
 struct CheatMenuRow {
   cheats::Cheat cheat;
   const char* label;

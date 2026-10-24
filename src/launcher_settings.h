@@ -34,6 +34,21 @@ inline constexpr char kMultisamplingKey[] = "gw2_msaa_compatibility";
 inline constexpr char kNative2xMsaaKey[] = "native_2x_msaa";
 inline constexpr char kTextureFilteringKey[] = "anisotropic_override";
 inline constexpr char kBloomKey[] = "gw2_bloom";
+// Windows D3D12 only; the Linux build never registers these cvars.
+inline constexpr char kSmoothGlowKey[] = "float_resolve_copies";
+inline constexpr bool kSmoothGlowDefault = true;
+inline constexpr char kHdrKey[] = "hdr_output";
+inline constexpr bool kHdrDefault = false;
+inline constexpr char kHdrPaperWhiteKey[] = "hdr_paper_white_nits";
+inline constexpr char kHdrPaperWhiteAuto[] = "0";
+inline constexpr char kHdrPeakKey[] = "hdr_peak_nits";
+inline constexpr char kHdrPeakAuto[] = "0";
+inline constexpr char kHdrHighlightStrengthKey[] = "hdr_highlight_strength";
+inline constexpr char kHdrHighlightStrengthDefault[] = "1.0";
+inline constexpr char kHdrHighlightSaturationKey[] = "hdr_highlight_saturation";
+inline constexpr char kHdrHighlightSaturationDefault[] = "1.0";
+inline constexpr char kHdrDebugViewKey[] = "hdr_debug_view";
+inline constexpr bool kHdrDebugViewDefault = false;
 inline constexpr char kKeyboardKey[] = "mnk_mode";
 inline constexpr char kVibrationKey[] = "gw2_vibration";
 inline constexpr bool kVibrationDefault = false;
@@ -107,6 +122,10 @@ void ApplyMultisampling(CvarAccess& cvars);
 // Makes the D3D12 render target path the host one when Internal render resolution is below 100% and no path is
 // configured. Only the D3D12 build registers the path. Returns whether it changed the path.
 bool ApplyInternalRenderPath(CvarAccess& cvars);
+
+// Writes each player's saved launcher name to the SDK's local_player_<n>_name cvar. Presentation only: it never
+// touches the profile identity, save path or sign-in state.
+void ApplyPlayerNames(CvarAccess& cvars);
 
 // Pending launcher edits over the saved player values, over the shipped defaults. Nothing reaches the running
 // game until Apply(), and nothing is written until Save().

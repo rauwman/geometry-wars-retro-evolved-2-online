@@ -13,7 +13,7 @@ Observed in the run logs (`build/logs/geometry_wars_retro_evolved_2_NNN.log`):
 1. ReXGlue starts, selects the NVIDIA adapter and creates the Direct3D 12 device.
 2. The guest memory arena is mapped. The virtual base is chosen at run time (`0x100000000` in the final runs).
 3. The function table is initialized for code `82030000`–`8217A1A4` and image `82000000`–`82220000`. 5,972 functions are registered, with 0 duplicates and 0 rejected.
-4. SDL input starts. A missing `gamecontrollerdb.txt` is only a warning.
+4. SDL input starts; the config skips the optional `gamecontrollerdb.txt` load (`hid_mappings_file = ""`), so SDL's built-in mappings apply with no warning.
 5. Shader storage is initialized for title `584108FF`.
 6. The guest main thread starts at the entry point `0x82095FD8` (`xstart`). It creates two worker threads that start at `0x820B54B0`.
 7. The guest opens `GAME:\Text-en.loc` (15,919 bytes, read in three requests), then title textures such as `retrobizarre.tga`.

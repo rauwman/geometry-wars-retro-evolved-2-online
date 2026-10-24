@@ -178,6 +178,7 @@ inline bool KeyboardBindingIsReserved(ImGuiKey key) {
     case ImGuiKey_F3:
     case ImGuiKey_F4:
     case ImGuiKey_F7:
+    case ImGuiKey_F9:
     case ImGuiKey_F10:
     case ImGuiKey_F11:
     case ImGuiKey_F12:

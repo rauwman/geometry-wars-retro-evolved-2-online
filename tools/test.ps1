@@ -2,13 +2,16 @@
 .SYNOPSIS
   Builds and runs tests\live_tests.cpp (the local stats store and the guest-buffer helpers behind the offline Live
   services), tests\achievements_overlay_rules_tests.cpp (the achievements overlay's controller and window-size
-  rules), tests\launcher_tests.cpp (game-file validation, package reading and safe install, launcher settings,
+  rules), tests\options_menu_tests.cpp (the in-game Options menu's L3 + R3 combo detector and choice stepping),
+  tests\launcher_tests.cpp (game-file validation, package reading and safe install, launcher settings,
   the window fit and the achievement summary), tests\launcher_settings_tests.cpp (the settings model, the PLAY gate,
   the Display, Graphics and Gameplay options), tests\graphics_adapter_tests.cpp (the Graphics card values and
   the adapter order), tests\aspect_ratio_tests.cpp (the Aspect Ratio table, canvas, window sizes and the retired
   Letterbox setting), tests\window_host_tests.cpp (the window title, the frame-rate
   format and the sampler), tests\cheats_tests.cpp (the cheat settings, the in-game menu model and the host
-  hotkeys), tests\online_tests.cpp (the friends leaderboard client, over a fake transport) and tests\user_data_tests.cpp (the portable user_data root and the move of the system
+  hotkeys), tests\unlock_all_modes_tests.cpp (the profile-mask override logic and its launcher/Options-menu/hook
+  wiring), tests\online_tests.cpp (the leaderboard client, over a fake transport), tests\online_board_tests.cpp,
+  tests\profile_name_tests.cpp, tests\profile_sync_tests.cpp and tests\user_data_tests.cpp (the portable user_data root and the move of the system
   folder into it), with Visual Studio's clang++, then checks that the release folder check refuses user data and
   saves (scratch folders only). No game files and no ReXGlue runtime are needed. The
   launcher tests need TRG Launcher: third_party\trg-launcher, or the folder named by GW2_TRG_LAUNCHER_DIR.
@@ -22,6 +25,7 @@ $Root = Split-Path $PSScriptRoot -Parent
 $OutDir = Join-Path $Root 'build\tests'
 $Exe = Join-Path $OutDir 'live_tests.exe'
 $RulesExe = Join-Path $OutDir 'achievements_overlay_rules_tests.exe'
+$OptionsMenuExe = Join-Path $OutDir 'options_menu_tests.exe'
 $LauncherExe = Join-Path $OutDir 'launcher_tests.exe'
 $SettingsExe = Join-Path $OutDir 'launcher_settings_tests.exe'
 $WindowHostExe = Join-Path $OutDir 'window_host_tests.exe'
@@ -30,6 +34,7 @@ $FrameLimiterExe = Join-Path $OutDir 'frame_limiter_tests.exe'
 $PlacementExe = Join-Path $OutDir 'launcher_placement_tests.exe'
 $UserDataExe = Join-Path $OutDir 'user_data_tests.exe'
 $CheatsExe = Join-Path $OutDir 'cheats_tests.exe'
+$UnlockAllModesExe = Join-Path $OutDir 'unlock_all_modes_tests.exe'
 $OnlineExe = Join-Path $OutDir 'online_tests.exe'
 $OnlineBoardExe = Join-Path $OutDir 'online_board_tests.exe'
 $ProfileNameExe = Join-Path $OutDir 'profile_name_tests.exe'
@@ -71,6 +76,9 @@ try {
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
         (Join-Path $Root 'tests\achievements_overlay_rules_tests.cpp') -o $RulesExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
+    & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
+        (Join-Path $Root 'tests\options_menu_tests.cpp') -o $OptionsMenuExe
+    if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') -I (Join-Path $Root 'tools\rexglue\win-amd64\include') -I (Join-Path $TrgDir 'include') `
         (Join-Path $Root 'tests\launcher_tests.cpp') (Join-Path $Root 'src\game_files.cpp') `
         (Join-Path $Root 'src\stfs.cpp') (Join-Path $Root 'src\launcher_achievements.cpp') `
@@ -78,7 +86,7 @@ try {
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
         -isystem (Join-Path $Root 'tools\rexglue\win-amd64\include') `
-        ('-DGW2_SRC_DIR=\"' + ((Join-Path $Root 'src') -replace '\\', '/') + '\"') `
+        ('-DGW2_SRC_DIR="' + ((Join-Path $Root 'src') -replace '\\', '/') + '"') `
         (Join-Path $Root 'tests\window_host_tests.cpp') -o $WindowHostExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
@@ -106,6 +114,10 @@ try {
         (Join-Path $Root 'tests\cheats_tests.cpp') -o $CheatsExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
+        ('-DGW2_SRC_DIR="' + ((Join-Path $Root 'src') -replace '\\', '/') + '"') `
+        (Join-Path $Root 'tests\unlock_all_modes_tests.cpp') -o $UnlockAllModesExe
+    if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
+    & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
         (Join-Path $Root 'tests\online_tests.cpp') (Join-Path $Root 'src\online_client.cpp') -o $OnlineExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
@@ -129,7 +141,7 @@ try {
     & $Clang -std=c11 -O1 -c (Join-Path $Root 'src\updater\third_party\miniz\miniz.c') -o (Join-Path $OutDir 'miniz.obj')
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
-        ('-DGW2_SRC_DIR=\"' + ((Join-Path $Root 'src') -replace '\\', '/') + '\"') `
+        ('-DGW2_SRC_DIR="' + ((Join-Path $Root 'src') -replace '\\', '/') + '"') `
         (Join-Path $Root 'tests\update_tests.cpp') `
         (Join-Path $Root 'src\updater\github_release.cpp') (Join-Path $Root 'src\updater\install_transaction.cpp') `
         (Join-Path $Root 'src\updater\json.cpp') (Join-Path $Root 'src\updater\sha256.cpp') `
@@ -149,6 +161,8 @@ try {
 if ($LASTEXITCODE) { throw "Tests failed ($LASTEXITCODE)" }
 & $RulesExe
 if ($LASTEXITCODE) { throw "Achievements overlay rule tests failed ($LASTEXITCODE)" }
+& $OptionsMenuExe
+if ($LASTEXITCODE) { throw "Options menu rule tests failed ($LASTEXITCODE)" }
 & $LauncherExe
 if ($LASTEXITCODE) { throw "Launcher tests failed ($LASTEXITCODE)" }
 & $WindowHostExe
@@ -173,6 +187,8 @@ if ($LASTEXITCODE) { throw "Online board tests failed ($LASTEXITCODE)" }
 if ($LASTEXITCODE) { throw "Profile name tests failed ($LASTEXITCODE)" }
 & $ProfileSyncExe
 if ($LASTEXITCODE) { throw "Profile sync tests failed ($LASTEXITCODE)" }
+& $UnlockAllModesExe
+if ($LASTEXITCODE) { throw "Unlock all game modes tests failed ($LASTEXITCODE)" }
 & $AdapterExe
 if ($LASTEXITCODE) { throw "Graphics card tests failed ($LASTEXITCODE)" }
 & $AspectExe
