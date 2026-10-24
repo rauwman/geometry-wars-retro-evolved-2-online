@@ -20,9 +20,9 @@ This is an unofficial fan-made fork of [saulob/geometry-wars-retro-evolved-2-rec
 - **No cheated scores.** A game in which a cheat was in effect is not uploaded.
 - **Account key.** Copy your private key on the Online page; after a reinstall, paste it under **Restore** to get your name back.
 - **Nothing blocks the game.** Without a server or a connection the game shows your own scores, as before.
-- **Linux / Steam Deck build that runs well.** The native Linux build ran at about 30 FPS on a Steam Deck, with the music slowing down along with it. The cause was in the ReXGlue runtime (it searched `/proc/self/maps` thousands of times a second under a global lock), and this fork fixes it: 60 to 120 FPS on the maintainer's Steam Deck. Details: [docs/linux.md](docs/linux.md) and [docs/rexglue-runtime-patch.md](docs/rexglue-runtime-patch.md#why-0048-and-0049).
+- **Linux / Steam Deck build that runs well.** The native Linux build ran at about 30 FPS on a Steam Deck, with the music slowing down along with it. The cause was in the ReXGlue runtime (it searched `/proc/self/maps` thousands of times a second under a global lock), and this fork fixes it: 60 to 120 FPS on the maintainer's Steam Deck. Details: [docs/linux.md](docs/linux.md) and [docs/rexglue-runtime-patch.md](docs/rexglue-runtime-patch.md#why-0058-and-0059).
 
-A server is **not** included and not hosted for you: someone you know has to run one. The server is a separate project, **[gw2-leaderboard](https://github.com/rauwman/gw2-leaderboard)** (a Docker image; running it and putting it safely on the internet behind HTTPS is up to you). How the game side works: [docs/online.md](docs/online.md).
+The leaderboard server is hosted for you at `gw2.rauwman.org`; the launcher has its address built in, so there is nothing to set up. The server is a separate project, **[gw2-leaderboard](https://github.com/rauwman/gw2-leaderboard)** (a Cloudflare Worker with a D1 database; the free plan is enough), if you want to run your own: see [docs/online.md](docs/online.md) for how the game side works.
 
 ## Vibe-coded
 
