@@ -81,7 +81,7 @@ try {
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
         -isystem (Join-Path $Root 'tools\rexglue\win-amd64\include') `
-        ('-DGW2_SRC_DIR=\"' + ((Join-Path $Root 'src') -replace '\\', '/') + '\"') `
+        ('-DGW2_SRC_DIR="' + ((Join-Path $Root 'src') -replace '\\', '/') + '"') `
         (Join-Path $Root 'tests\window_host_tests.cpp') -o $WindowHostExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
@@ -109,7 +109,7 @@ try {
         (Join-Path $Root 'tests\cheats_tests.cpp') -o $CheatsExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
-        ('-DGW2_SRC_DIR=\"' + ((Join-Path $Root 'src') -replace '\\', '/') + '\"') `
+        ('-DGW2_SRC_DIR="' + ((Join-Path $Root 'src') -replace '\\', '/') + '"') `
         (Join-Path $Root 'tests\unlock_all_modes_tests.cpp') -o $UnlockAllModesExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
@@ -122,7 +122,7 @@ try {
     & $Clang -std=c11 -O1 -c (Join-Path $Root 'src\updater\third_party\miniz\miniz.c') -o (Join-Path $OutDir 'miniz.obj')
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
-        ('-DGW2_SRC_DIR=\"' + ((Join-Path $Root 'src') -replace '\\', '/') + '\"') `
+        ('-DGW2_SRC_DIR="' + ((Join-Path $Root 'src') -replace '\\', '/') + '"') `
         (Join-Path $Root 'tests\update_tests.cpp') `
         (Join-Path $Root 'src\updater\github_release.cpp') (Join-Path $Root 'src\updater\install_transaction.cpp') `
         (Join-Path $Root 'src\updater\json.cpp') (Join-Path $Root 'src\updater\sha256.cpp') `
