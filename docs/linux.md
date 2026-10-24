@@ -38,6 +38,8 @@ is older than GCC 13.
 The fork's maintainer tested this on a Steam Deck: the game runs at 60 to 90 FPS. The frame rate you get is capped by
 the launcher's frame rate setting and by the display (60 Hz on the LCD model, 90 Hz on the OLED).
 
+Set the frame rate to **60 or 120 FPS**: the game simulates at 60 steps per second, and at 90 or 144 FPS busy scenes such as explosions can stutter (the same with upstream's build).
+
 1. In **Desktop Mode**, do steps 1 to 5 above. Copy your package to the Deck first (USB stick, SD card or network).
 2. In Steam: **Games** > **Add a Non-Steam Game to My Library**, and pick the AppImage.
 3. Return to **Game Mode** and start it from your library.
