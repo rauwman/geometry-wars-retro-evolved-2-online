@@ -14,16 +14,18 @@
 
 <img width="1905" height="1071" alt="2026-10-11_18-47" src="https://github.com/user-attachments/assets/08b1ed2c-3244-41c1-94f1-e2ae4c1b76d1" />
 
-## What's new in v0.5.0
+## What's new in v0.6.0
 
-- **High frame rates keep the original game speed**: above 60 FPS the game still updates 60 times per second, and the frames in between are interpolated ([#5](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/issues/5))
-- **Launcher self-update**: the launcher can download and install a newer release for you
-- **Keyboard remapping** on the Controls page, and controller navigation in the launcher and overlays
-- **Exit game** in the main menu
-- the mouse cursor hides while you play with a controller or the keyboard and returns when you use the mouse
-- Windows performance work in the Direct3D 12 renderer, and a crash report in the log if the game crashes
+- **Native HDR output and Smooth glow** (Windows): the game's neon highlights go brighter than SDR white on an HDR display, and bloom/glow gradients fade out smoothly instead of ending in flat steps
+- **In-game Options menu** (**F1**, or **L3 + R3** on a controller): Display, Graphics, HDR, Gameplay, Controls and Cheats, without leaving the game; most settings apply live, a few restart-only ones offer **Restart now**
+- **Renderer and performance improvements**: lower CPU/GPU overhead and steadier frame pacing, especially in busy scenes and at higher render resolutions
+- **Unlock all game modes**: a reversible Gameplay option that makes every mode selectable without touching your saved progression; turning it Off restores your real unlock state exactly
+- **Add 100 Lives**, a **Movement Speed** cheat and a **debug bomb** hotkey, alongside the existing cheats
+- **Configurable local player names** for up to 4 local players; save data is not affected
+- Steadier audio in busy scenes like Evolved and Sequence, from a deeper audio queue
+- Hardened high-refresh visual interpolation and other stability refinements
 
-The full list is in the [v0.5.0 release notes](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/releases/tag/v0.5.0).
+The full list is in the [v0.6.0 release notes](.github/release-notes-v0.6.0.md).
 ## Features
 
 - Controller vibration for gameplay events, off by default (Controls > Vibration). It is a PC-port addition, not a restored original feature
@@ -61,7 +63,7 @@ The launcher checks the Title ID and content type when you pick the package, and
 
 ## Installing
 
-1. Download **GeometryWarsRetroEvolved2-v0.5.0-windows-x64.zip** from the [latest release](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/releases/latest) and extract it anywhere you can write to.
+1. Download **GeometryWarsRetroEvolved2-v0.6.0-windows-x64.zip** from the [latest release](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/releases/latest) and extract it anywhere you can write to.
 2. Run **geometry_wars_retro_evolved_2.exe**. The launcher opens.
 3. On the **Play** page click **Install from package...** and pick your package. It is one file with a long hexadecimal name and no extension. On an Xbox 360 drive it is in `Content\0000000000000000\584108FF\000D0000\`.
 4. Wait until **Ready to play** appears. The game files are copied into the `game` folder next to the program. The package file itself is not copied there.
