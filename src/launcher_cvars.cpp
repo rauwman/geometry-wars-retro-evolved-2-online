@@ -41,10 +41,18 @@ REXCVAR_DEFINE_BOOL(gw2_msaa_compatibility, false, "Geometry Wars",
                     "Draw the game's 2x MSAA render targets with 4x MSAA, for GPUs or drivers whose native 2x MSAA "
                     "misrenders (sets native_2x_msaa)")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-REXCVAR_DEFINE_STRING(gw2_graphics_adapter, gw2::kGraphicsAdapterAuto, "Geometry Wars",
-                      "Graphics card: auto, or the index d3d12_adapter takes (applied at start)");
+REXCVAR_DEFINE_STRING(gw2_graphics_adapter, "auto", "Geometry Wars",
+                      "Graphics card: the index d3d12_adapter takes; anything else uses the first adapter (applied at start)");
 REXCVAR_DEFINE_STRING(gw2_aspect_ratio, "16:9", "Geometry Wars",
                       "Aspect ratio the game renders in: 16:9, 16:10, 21:9, 32:9, 4:3 or 5:4 (applied at start)");
+REXCVAR_DEFINE_STRING(gw2_player_1_name, "Player 1", "Geometry Wars",
+                      "Name shown for local player 1; save data is not affected");
+REXCVAR_DEFINE_STRING(gw2_player_2_name, "Player 2", "Geometry Wars",
+                      "Name shown for local player 2; save data is not affected");
+REXCVAR_DEFINE_STRING(gw2_player_3_name, "Player 3", "Geometry Wars",
+                      "Name shown for local player 3; save data is not affected");
+REXCVAR_DEFINE_STRING(gw2_player_4_name, "Player 4", "Geometry Wars",
+                      "Name shown for local player 4; save data is not affected");
 REXCVAR_DEFINE_INT32(gw2_launcher_x, 0, "Launcher", "Launcher window position, left edge (set by the launcher)");
 REXCVAR_DEFINE_INT32(gw2_launcher_y, 0, "Launcher", "Launcher window position, top edge (set by the launcher)");
 REXCVAR_DEFINE_INT32(gw2_launcher_width, 0, "Launcher", "Launcher window width; 0 uses the default (set by the launcher)");
@@ -85,11 +93,11 @@ std::string TextureFilteringName(std::string_view value) {
 
 std::string SelectedGraphicsCardLabel() {
   const std::string setting = REXCVAR_GET(gw2_graphics_adapter);
-  const std::optional<int> index = ParseGraphicsAdapter(setting);
-  if (!index) {
-    return "Automatic";
-  }
   const std::vector<GraphicsAdapter> adapters = ListGraphicsAdapters();
+  const std::optional<int> index = ResolveGraphicsAdapter(setting, adapters);
+  if (!index) {
+    return "Unavailable";
+  }
   for (const GraphicsAdapter& adapter : adapters) {
     if (adapter.index != *index) {
       continue;
@@ -99,7 +107,7 @@ std::string SelectedGraphicsCardLabel() {
     });
     return same_name > 1 ? adapter.name + " (" + std::to_string(adapter.index) + ")" : adapter.name;
   }
-  return "Graphics card " + setting + " (not found)";
+  return "Unavailable";
 }
 
 std::string ChoiceLabel(const std::vector<SettingChoice>& choices, std::string_view value,
@@ -199,22 +207,21 @@ void SettleStartupCvars() {
 void ApplyGraphicsAdapter() {
 #if defined(_WIN32)
   const std::string setting = REXCVAR_GET(gw2_graphics_adapter);
-  if (!ParseGraphicsAdapter(setting)) {
-    REXLOG_INFO("Graphics card: Automatic");
-    return;
-  }
   const std::vector<GraphicsAdapter> adapters = ListGraphicsAdapters();
-  const int index = ResolveGraphicsAdapter(setting, adapters);
-  if (index < 0) {
-    REXLOG_WARN("Graphics card {} is not available, using Automatic", setting);
+  const std::optional<int> index = ResolveGraphicsAdapter(setting, adapters);
+  if (!index) {
+    REXLOG_WARN("No usable Direct3D 12 graphics card found");
     return;
   }
-  rex::cvar::SetFlagByName(kD3D12AdapterKey, std::to_string(index));
-  for (const GraphicsAdapter& adapter : adapters) {
-    if (adapter.index == index) {
-      REXLOG_INFO("Graphics card: {} (adapter {})", adapter.name, index);
-    }
+  const auto chosen = std::find_if(adapters.begin(), adapters.end(),
+                                   [&](const GraphicsAdapter& adapter) { return adapter.index == *index; });
+  if (ParseGraphicsAdapter(setting) && ParseGraphicsAdapter(setting) != index) {
+    REXLOG_WARN("Graphics card {} is not available, using {} (adapter {})", setting, chosen->name, *index);
+  } else {
+    REXLOG_INFO("Graphics card: {} (adapter {})", chosen->name, *index);
   }
+  rex::cvar::SetFlagByName(kD3D12AdapterKey, std::to_string(*index));
+  rex::cvar::SetFlagByName("gw2_graphics_adapter", std::to_string(*index));
 #endif
 }
 

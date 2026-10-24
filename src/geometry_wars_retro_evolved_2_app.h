@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <functional>
@@ -32,6 +33,7 @@
 #include "live_fix.h"
 #include "log_filter.h"
 #include "log_path.h"
+#include "options_menu.h"
 #include "rumble.h"
 #include "session_log.h"
 #include "system_info.h"
@@ -168,6 +170,7 @@ class GeometryWarsRetroEvolved2App : public rex::ReXApp {
     if (gw2::ApplyInternalRenderPath(cvars_)) {
       REXLOG_INFO("Internal render resolution: using D3D12 host render targets");
     }
+    gw2::ApplyPlayerNames(cvars_);
     const bool game_ready = gw2::CheckGameFiles(defaults.game_data_root).state == gw2::GameFileState::kValid;
     const bool show = gw2::LauncherWanted(game_ready, gw2::ShowLauncherSetting(*settings_), gw2::ShiftHeld(),
                                           gw2::TakeSkipLauncher());
@@ -238,6 +241,7 @@ class GeometryWarsRetroEvolved2App : public rex::ReXApp {
         .bridge = {
             .open_achievements = [this] { app_context().CallInUIThreadDeferred([this] { OpenAchievements(); }); },
             .close_achievements = [this] { app_context().CallInUIThreadDeferred([this] { CloseAchievements(); }); },
+            .toggle_options = [] { gw2::ToggleOptionsMenu(); },
         },
     });
   }
@@ -249,6 +253,7 @@ class GeometryWarsRetroEvolved2App : public rex::ReXApp {
       gw2::rumble::Shutdown(input);
       input->Shutdown();
     }
+    gw2::DetachOptionsMenu();
     gw2::DetachCheatMenu();
     gw2::DetachWindowHost();
     CloseAchievements();
@@ -278,6 +283,9 @@ class GeometryWarsRetroEvolved2App : public rex::ReXApp {
   }
 
  private:
+  // XN_SYS_UI: the Xbox 360 guide's notification, broadcast while the Options menu is open so the game pauses.
+  static constexpr uint32_t kXNotificationSystemUI = 0x9;
+
   std::filesystem::path LogsDirectory(const std::filesystem::path& user_data) const {
     const std::filesystem::path port_folder = gw2::PortFolder();
     return gw2::LogsFolder(port_folder, user_data, gw2::ActiveLogFile(),
@@ -320,7 +328,25 @@ class GeometryWarsRetroEvolved2App : public rex::ReXApp {
     if (!window() || !imgui_drawer()) {
       return;
     }
-    gw2::AttachCheatMenu(window(), imgui_drawer(), [this] { return !achievements_; });
+    gw2::AttachCheatMenu(window(), imgui_drawer(), [this] { return !achievements_ && !gw2::OptionsMenuOpen(); });
+    gw2::SetOptionsMenuPoster(
+        [this](std::function<void()> work) { app_context().CallInUIThreadDeferred(std::move(work)); });
+    gw2::AttachOptionsMenu(
+        window(), imgui_drawer(),
+        {.settings = settings_.get(),
+         .can_open = [this] { return !achievements_ && !gw2::CheatMenuOpen(); },
+         .set_system_ui = [this](bool open) {
+           if (auto* kernel = runtime() ? runtime()->kernel_state() : nullptr) {
+             kernel->BroadcastNotification(kXNotificationSystemUI, open ? 1 : 0);
+           }
+         },
+         .set_fullscreen = [this](bool fullscreen) {
+           if (window()) {
+             window()->SetFullscreen(fullscreen);
+           }
+           cvars_.Assign(gw2::kFullscreenKey, fullscreen ? "true" : "false");
+         },
+         .restart = [this] { return RestartInNewWindow(); }});
     // Replaces ReXApp's own callback, which the menu's version repeats.
     if (auto* input = static_cast<rex::input::InputSystem*>(runtime()->input_system())) {
       input->SetActiveCallback(gw2::GameInputActive);
@@ -328,7 +354,7 @@ class GeometryWarsRetroEvolved2App : public rex::ReXApp {
   }
 
   bool CursorUiActive() const {
-    return launcher_open_ || gw2::CheatMenuOpen() || achievements_ != nullptr;
+    return launcher_open_ || gw2::CheatMenuOpen() || gw2::OptionsMenuOpen() || achievements_ != nullptr;
   }
 
   // The new process owns the game, so this one hard-exits like OnClosing, without the subsystem teardown.
@@ -360,8 +386,8 @@ class GeometryWarsRetroEvolved2App : public rex::ReXApp {
   }
 
   void OpenAchievements() {
-    if (achievements_ || gw2::CheatMenuOpen() || !runtime() || !runtime()->kernel_state() || !imgui_drawer() ||
-        !immediate_drawer()) return;
+    if (achievements_ || gw2::CheatMenuOpen() || gw2::OptionsMenuOpen() || !runtime() || !runtime()->kernel_state() ||
+        !imgui_drawer() || !immediate_drawer()) return;
     achievements_ = std::make_unique<gw2::AchievementsOverlay>(
         imgui_drawer(), immediate_drawer(), runtime(), &achievements(),
         gw2::AchievementsOverlay::Controls{

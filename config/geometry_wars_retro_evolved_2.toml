@@ -2,6 +2,22 @@
 # Full (purchased) license for XamContentGetLicenseMask; the SDK default 0 means trial.
 license_mask = 1
 gpu_plugin = "xenos"
+# Windows D3D12 only. Resolves keep the precision and range of the floating-point render targets
+# (Smooth glow in the launcher). HDR is off by default and needs Windows HDR on for the display.
+float_resolve_copies = true
+hdr_output = false
+hdr_paper_white_nits = 0
+hdr_peak_nits = 0
+hdr_highlight_strength = "1.0"
+hdr_highlight_saturation = "1.0"
+hdr_debug_view = false
+
+# Empty skips the optional gamecontrollerdb.txt load; SDL's built-in mappings still apply.
+hid_mappings_file = ""
+
+# Disables ReXGlue's own F4 settings/debug overlay: the in-game Options menu (F1 / L3 + R3) is this
+# game's player-facing settings UI. F3 (debug overlay) and F7 (achievements) are unaffected.
+bind_settings = ""
 
 # Launcher and game window, centered on the primary display. Size is in logical pixels
 # (scaled by Windows DPI) and is reduced to fit the display. The game sets the guest video mode from the launcher's
@@ -10,3 +26,7 @@ fullscreen = false
 monitor = 1
 window_width = 1280
 window_height = 720
+
+# Audio frames queued ahead of playback (ReXGlue's default is 8). 16 keeps the sound in step through busy modes like
+# Evolved and Sequence, at about 43 ms more delay.
+audio_maxqframes = 16

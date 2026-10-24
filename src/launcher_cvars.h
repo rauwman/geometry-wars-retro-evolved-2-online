@@ -56,7 +56,7 @@ void FitWindowToDisplay();
 void SettleStartupCvars();
 
 // Windows: sets d3d12_adapter from the Graphics card choice. Call once the player settings are loaded and before
-// the graphics device is created; Automatic, or a card that is no longer present, leaves the SDK's preference alone.
+// the graphics device is created; the choice becomes the first adapter when it names none that is present.
 void ApplyGraphicsAdapter();
 
 // Sets the guest video mode and the presenter from the Aspect Ratio choice. Call once the player settings are loaded

@@ -30,9 +30,8 @@ struct GraphicsAdapterDetails {
 // Mirrors the runtime's enumeration, so Automatic reports the GPU that is actually picked.
 GraphicsAdapterDetails EffectiveGraphicsAdapter(int configured_index);
 
-inline constexpr char kGraphicsAdapterAuto[] = "auto";
-
-// The adapter index a gw2_graphics_adapter value names; empty for Automatic and for anything that is not an index.
+// The adapter index a gw2_graphics_adapter value names; empty for anything that is not an index, such as the retired
+// "auto".
 inline std::optional<int> ParseGraphicsAdapter(std::string_view setting) {
   int index = 0;
   const char* end = setting.data() + setting.size();
@@ -43,15 +42,18 @@ inline std::optional<int> ParseGraphicsAdapter(std::string_view setting) {
   return index;
 }
 
-// The value for d3d12_adapter: -1 (automatic) unless the setting names an adapter that is present.
-inline int ResolveGraphicsAdapter(std::string_view setting, const std::vector<GraphicsAdapter>& adapters) {
+// The adapter the setting names if it is present, else the first adapter. Empty only when there are no adapters.
+inline std::optional<int> ResolveGraphicsAdapter(std::string_view setting, const std::vector<GraphicsAdapter>& adapters) {
+  if (adapters.empty()) {
+    return std::nullopt;
+  }
   const std::optional<int> index = ParseGraphicsAdapter(setting);
   for (const GraphicsAdapter& adapter : adapters) {
     if (index && adapter.index == *index) {
       return adapter.index;
     }
   }
-  return -1;
+  return adapters.front().index;
 }
 
 }  // namespace gw2

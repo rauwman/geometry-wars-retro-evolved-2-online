@@ -26,6 +26,7 @@
 #include "launcher_settings.h"
 #include "multisampling.h"
 #include "retired_settings.h"
+#include "unlock_all_modes.h"
 
 namespace fs = std::filesystem;
 using namespace gw2;
@@ -124,7 +125,7 @@ void RegisterGameDefaults(FakeCvars& cvars) {
   cvars.Register(kMonitorKey, "1");
   cvars.Register(kVSyncKey, "true");
   cvars.Register(kAspectKey, "16:9");
-  cvars.Register(kGraphicsAdapterKey, kGraphicsAdapterAuto);
+  cvars.Register(kGraphicsAdapterKey, "auto");
   cvars.Register(kRenderScaleKey, "1");
   cvars.Register(kInternalRenderScaleKey, "100");
   cvars.Register(kAntiAliasingKey, "none");
@@ -144,9 +145,11 @@ void RegisterGameDefaults(FakeCvars& cvars) {
   cvars.Register(kShowFpsKey, kShowFpsDefault ? "true" : "false");
   cvars.Register(kShowResolutionKey, kShowResolutionDefault ? "true" : "false");
   cvars.Register(kShowFrameCounterKey, kShowFrameCounterDefault ? "true" : "false");
+  cvars.Register(unlock_all_modes::kKey, unlock_all_modes::kDefault ? "true" : "false");
   for (const cheats::CheatInfo& cheat : cheats::kCheats) {
     cvars.Register(cheat.key, cheats::kCheatDefault ? "true" : "false");
   }
+  cvars.Register(cheats::kMovementSpeedKey, std::to_string(cheats::kMovementSpeedDefault));
 }
 
 void TestShippedValues() {
@@ -547,6 +550,40 @@ void TestFrameCounterSetting() {
   CHECK(ReadText(file).find("gw2_show_frame_counter = false") != std::string::npos);
 }
 
+void TestUnlockAllGameModesSetting() {
+  Section("unlock all game modes");
+  CHECK(!unlock_all_modes::kDefault);
+  CHECK(std::string_view(unlock_all_modes::kKey) == "gw2_unlock_all_game_modes");
+  bool managed = false;
+  for (const ManagedSetting& setting : ManagedSettings()) {
+    managed = managed || setting.key == unlock_all_modes::kKey;
+  }
+  CHECK(managed);
+  CHECK(!IsWindowSetting(unlock_all_modes::kKey));
+  CHECK(!IsLauncherPlacementSetting(unlock_all_modes::kKey));
+
+  const fs::path dir = FreshDir("unlock_all_modes");
+  const fs::path file = LauncherSettingsPath(dir);
+  FakeCvars cvars;
+  RegisterGameDefaults(cvars);
+  GameSettings settings(cvars, file, dir / "missing.toml");
+  settings.Capture();
+  settings.MarkWindowCreated();
+  CHECK(settings.Get(unlock_all_modes::kKey) == "false");
+
+  settings.Set(unlock_all_modes::kKey, "true");
+  CHECK(!settings.WindowChanged());
+  CHECK(!settings.Apply());
+  CHECK(cvars.values[unlock_all_modes::kKey] == "true");
+  CHECK(settings.Save());
+  CHECK(ReadText(file).find("gw2_unlock_all_game_modes = true") != std::string::npos);
+
+  settings.ResetToDefaults();
+  CHECK(settings.Get(unlock_all_modes::kKey) == "false");
+  CHECK(settings.Save());
+  CHECK(ReadText(file).find("gw2_unlock_all_game_modes = false") != std::string::npos);
+}
+
 void TestFrameLimitSetting() {
   Section("frame rate limit");
   CHECK(std::string_view(kFrameRateKey) == "gw2_frame_rate");
@@ -563,6 +600,10 @@ void TestFrameLimitSetting() {
   CHECK(choices.size() == 8);
   CHECK(choices.front().value == "30" && choices.front().label == "30");
   CHECK(choices.back().value == "0" && choices.back().label == "Unlimited");
+  CHECK(choices[1].value == "60" && choices[1].label == "60 - Original");
+  for (const SettingChoice& choice : choices) {
+    CHECK(choice.value == "60" || choice.label.find("Original") == std::string::npos);
+  }
 
   const fs::path dir = FreshDir("frame_limit");
   const fs::path file = LauncherSettingsPath(dir);
@@ -968,16 +1009,16 @@ void TestGraphicsAdapterSetting() {
   CHECK(IsWindowSetting(kGraphicsAdapterKey));
 
   const std::vector<GraphicsAdapter> adapters = {{0, "NVIDIA GeForce RTX 4070"}, {1, "Intel UHD Graphics 730"}};
-  std::vector<SettingChoice> choices = GraphicsAdapterChoices(adapters, kGraphicsAdapterAuto);
-  CHECK(choices.size() == 3);
-  CHECK(choices[0].value == "auto" && choices[0].label == "Automatic (Recommended)");
-  CHECK(choices[1].value == "0" && choices[1].label == "NVIDIA GeForce RTX 4070");
-  CHECK(choices[2].value == "1" && choices[2].label == "Intel UHD Graphics 730");
-  choices = GraphicsAdapterChoices({{0, "Same"}, {2, "Same"}}, "0");
-  CHECK(choices.size() == 3 && choices[1].label == "Same (0)" && choices[2].label == "Same (2)");
-  choices = GraphicsAdapterChoices(adapters, "5");
-  CHECK(choices.size() == 4 && choices[3].value == "5" && choices[3].label == "Graphics card 5 (not found)");
-  CHECK(GraphicsAdapterChoices({}, "garbage").size() == 1);
+  std::vector<SettingChoice> choices = GraphicsAdapterChoices(adapters);
+  CHECK(choices.size() == 2);
+  CHECK(choices[0].value == "0" && choices[0].label == "NVIDIA GeForce RTX 4070");
+  CHECK(choices[1].value == "1" && choices[1].label == "Intel UHD Graphics 730");
+  for (const SettingChoice& choice : choices) {
+    CHECK(choice.value != "auto" && choice.label.find("Automatic") == std::string::npos);
+  }
+  choices = GraphicsAdapterChoices({{0, "Same"}, {2, "Same"}});
+  CHECK(choices.size() == 2 && choices[0].label == "Same (0)" && choices[1].label == "Same (2)");
+  CHECK(GraphicsAdapterChoices({}).empty());
 
   // The device exists before the launcher shows, so a different card restarts the game; Apply never assigns it.
   const fs::path dir = FreshDir("graphics_card");
@@ -1062,12 +1103,12 @@ void TestCheatSettings() {
   for (const ManagedSetting& setting : ManagedSettings()) {
     if (setting.key.starts_with("gw2_cheat_")) {
       ++cheat_keys;
-      CHECK(setting.kind == ValueKind::kBool);
+      CHECK(setting.kind == (setting.key == cheats::kMovementSpeedKey ? ValueKind::kInt : ValueKind::kBool));
       CHECK(!IsWindowSetting(setting.key));
       CHECK(!IsLauncherPlacementSetting(setting.key));
     }
   }
-  CHECK(cheat_keys == 3);
+  CHECK(cheat_keys == 4);
   for (const cheats::CheatInfo& cheat : cheats::kCheats) {
     bool managed = false;
     for (const ManagedSetting& setting : ManagedSettings()) {
@@ -1135,6 +1176,52 @@ void TestCheatSettings() {
   CHECK(reset.find("gw2_cheat_infinite_shield = false") != std::string::npos);
   CHECK(reset.find("gw2_cheat_infinite_bombs = false") != std::string::npos);
   CHECK(reset.find("= true") == std::string::npos);
+}
+
+void TestMovementSpeedSetting() {
+  Section("movement speed setting");
+  const fs::path dir = FreshDir("movement_speed");
+  const fs::path file = LauncherSettingsPath(dir);
+  FakeCvars cvars;
+  RegisterGameDefaults(cvars);
+  GameSettings settings(cvars, file, dir / "missing.toml");
+  settings.Capture();
+  settings.MarkWindowCreated();
+  CHECK(settings.Get(cheats::kMovementSpeedKey) == "1");
+  CHECK(cheats::ParseMovementSpeed(settings.GetInt(cheats::kMovementSpeedKey, 0)) == cheats::kMovementSpeedOff);
+
+  for (const char* value : {"1", "2", "4"}) {
+    settings.Set(cheats::kMovementSpeedKey, value);
+    CHECK(settings.Save());
+    const Values stored = ReadSettingsValues(file);
+    FakeCvars restarted;
+    RegisterGameDefaults(restarted);
+    for (const auto& [key, saved] : stored) {
+      if (restarted.IsRegistered(key)) {
+        restarted.values[key] = saved;
+      }
+    }
+    GameSettings reloaded(restarted, file, dir / "missing.toml");
+    reloaded.Capture();
+    CHECK(reloaded.Get(cheats::kMovementSpeedKey) == value);
+    CHECK(cheats::ParseMovementSpeed(reloaded.GetInt(cheats::kMovementSpeedKey, 0)) == std::stoi(value));
+    for (const cheats::CheatInfo& cheat : cheats::kCheats) {
+      CHECK(!reloaded.GetBool(cheat.key, true));
+    }
+  }
+
+  for (const char* corrupt : {"3", "0", "-4", "abc", ""}) {
+    settings.Set(cheats::kMovementSpeedKey, corrupt);
+    CHECK(cheats::ParseMovementSpeed(settings.GetInt(cheats::kMovementSpeedKey, cheats::kMovementSpeedDefault)) ==
+          cheats::kMovementSpeedOff);
+  }
+
+  settings.Set(cheats::kMovementSpeedKey, "4");
+  CHECK(settings.Save());
+  settings.ResetToDefaults();
+  CHECK(settings.Get(cheats::kMovementSpeedKey) == "1");
+  CHECK(settings.Save());
+  CHECK(ReadText(file).find("gw2_cheat_movement_speed = 1") != std::string::npos);
 }
 
 void TestUnregisteredCheatIsRejected() {
@@ -1292,6 +1379,7 @@ int main() {
   TestFrameRateSetting();
   TestRenderResolutionSetting();
   TestFrameCounterSetting();
+  TestUnlockAllGameModesSetting();
   TestFrameLimitSetting();
   TestBloomSetting();
   TestMultisamplingSetting();
@@ -1300,6 +1388,7 @@ int main() {
   TestGraphicsAdapterSetting();
   TestLauncherPlacementSettings();
   TestCheatSettings();
+  TestMovementSpeedSetting();
   TestUnregisteredCheatIsRejected();
   TestSettingsFollowTheUserDataRoot();
   TestDisplayModeStaysWithTheGame();

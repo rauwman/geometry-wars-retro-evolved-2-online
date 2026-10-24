@@ -29,6 +29,10 @@ constexpr ButtonKey kButtons[] = {
     {ImGuiKey_GamepadDpadRight, SDL_GAMEPAD_BUTTON_DPAD_RIGHT},
     {ImGuiKey_GamepadDpadUp, SDL_GAMEPAD_BUTTON_DPAD_UP},
     {ImGuiKey_GamepadDpadDown, SDL_GAMEPAD_BUTTON_DPAD_DOWN},
+    {ImGuiKey_GamepadL1, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER},
+    {ImGuiKey_GamepadR1, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER},
+    {ImGuiKey_GamepadL3, SDL_GAMEPAD_BUTTON_LEFT_STICK},
+    {ImGuiKey_GamepadR3, SDL_GAMEPAD_BUTTON_RIGHT_STICK},
 };
 
 // The left stick dead zone XInput uses. SDL's Y axis points down.
@@ -111,15 +115,27 @@ void ImGuiGamepad::Update(ImGuiIO& io) {
       amount[i] = std::max(amount[i], reached);
     }
   }
+  held_ = 0;
   for (size_t i = 0; i < std::size(kButtons); ++i) {
     io.AddKeyEvent(kButtons[i].key, down[i]);
+    held_ |= uint32_t(down[i]) << i;
   }
   for (size_t i = 0; i < std::size(kSticks); ++i) {
     io.AddKeyAnalogEvent(kSticks[i].key, amount[i] > 0.1f, amount[i]);
   }
 }
 
+bool ImGuiGamepad::Held(ImGuiKey key) const {
+  for (size_t i = 0; i < std::size(kButtons); ++i) {
+    if (kButtons[i].key == key) {
+      return (held_ >> i) & 1;
+    }
+  }
+  return false;
+}
+
 void ImGuiGamepad::Release(ImGuiIO& io) {
+  held_ = 0;
   for (const ButtonKey& b : kButtons) {
     io.AddKeyEvent(b.key, false);
   }

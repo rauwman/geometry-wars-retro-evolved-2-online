@@ -4,9 +4,11 @@
 #include <cfloat>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -45,6 +47,8 @@
 #include "launcher_quit.h"
 #include "launcher_settings.h"
 #include "log_filter.h"
+#include "player_names.h"
+#include "unlock_all_modes.h"
 #include "update_config.h"
 #include "updater/update_ui.h"
 
@@ -605,13 +609,13 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
   }
 
   void PageGraphics(trg::Ui& ui) {
-    if (!graphics_adapters_.empty()) {
+    if (const std::optional<int> adapter =
+            ResolveGraphicsAdapter(settings_.Get(kGraphicsAdapterKey), graphics_adapters_)) {
+      const std::string value = std::to_string(*adapter);
+      settings_.Set(kGraphicsAdapterKey, value);
       ui.Combo("Graphics card",
-               "The GPU that renders the game. Automatic prefers the high-performance GPU. A change restarts the game "
-               "once when you press Play.",
-               kGraphicsAdapterKey, kGraphicsAdapterAuto,
-               ToTrgOptions(GraphicsAdapterChoices(graphics_adapters_,
-                                                   settings_.Get(kGraphicsAdapterKey, kGraphicsAdapterAuto))));
+               "The GPU that renders the game. A change restarts the game once when you press Play.",
+               kGraphicsAdapterKey, value.c_str(), ToTrgOptions(GraphicsAdapterChoices(graphics_adapters_)));
     }
     ui.Combo("Render resolution",
              "Draw resolution scale for both axes. Higher is sharper and costs more GPU time. Window size is separate.",
@@ -630,6 +634,24 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
               kTextureFilteringKey, "-1", ToTrgOptions(TextureFilteringChoices()), 6);
     ui.Choice("Bloom", "Controls the intensity of the game's original bloom/glow effect.", kBloomKey, "original",
               ToTrgOptions(BloomChoices()));
+#if defined(_WIN32)
+    ui.Choice("Smooth glow",
+              "Keeps the full precision of the glow between the game's bloom passes. Off is the original, where the "
+              "faint glow around stars and lights ends in flat, hard-edged steps. A change restarts the game once "
+              "when you press Play.",
+              kSmoothGlowKey, kSmoothGlowDefault ? "true" : "false", ToTrgOptions(SmoothGlowChoices()));
+    ui.Choice("HDR",
+              "Outputs HDR, where the neon light the game adds up goes brighter than white. Needs Windows HDR on "
+              "for the display. Turns Smooth glow on. A change restarts the game once when you press Play.",
+              kHdrKey, kHdrDefault ? "true" : "false", ToTrgOptions(HdrChoices()));
+    ui.Choice("HDR paper white",
+              "Brightness of the game's normal white and of the overlays in HDR. Windows SDR brightness matches "
+              "the game without HDR, set by the SDR content brightness slider in Windows' HDR settings.",
+              kHdrPaperWhiteKey, kHdrPaperWhiteAuto, ToTrgOptions(HdrPaperWhiteChoices()));
+    ui.Choice("HDR peak brightness",
+              "The brightest the highlights go in HDR. Display's peak uses what the display reports to Windows.",
+              kHdrPeakKey, kHdrPeakAuto, ToTrgOptions(HdrPeakChoices()));
+#endif
     ui.EndRows();
   }
 
@@ -639,6 +661,50 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
     ui.Toggle("Render resolution in title", kShowResolutionHelp, kShowResolutionKey, kShowResolutionDefault,
               "Off", "On");
     ui.Toggle("Frame counter", kFrameCounterHelp, kShowFrameCounterKey, kShowFrameCounterDefault, "Hidden", "Shown");
+    ui.Toggle(unlock_all_modes::kLabel, unlock_all_modes::kDescription, unlock_all_modes::kKey,
+              unlock_all_modes::kDefault, "Off", "On");
+    if (ui.Section("Player names", true)) {
+      ui.Help(kPlayerNamesHelp);
+      for (const PlayerNameSetting& player : kPlayerNames) {
+        PlayerNameRow(ui, player);
+      }
+    }
+  }
+
+  static void PlayerNameRow(trg::Ui& ui, const PlayerNameSetting& player) {
+    static std::map<std::string, PlayerNameResult> blocked;
+    struct Edit {
+      std::string previous;
+      PlayerNameResult blocked = PlayerNameResult::Ok;
+    } edit{ui.settings().Get(player.key)};
+    const auto reject_invalid = [](ImGuiInputTextCallbackData* data) {
+      auto* state = static_cast<Edit*>(data->UserData);
+      const std::string kept = rex::system::xam::AcceptUserDisplayNameEdit(
+          state->previous, {data->Buf, size_t(data->BufTextLen)}, &state->blocked);
+      if (state->blocked != PlayerNameResult::Ok) {
+        data->DeleteChars(0, data->BufTextLen);
+        data->InsertChars(0, kept.c_str());
+      }
+      return 0;
+    };
+    ui.Row(player.label, kPlayerNameHint);
+    char text[64];
+    std::snprintf(text, sizeof text, "%s", edit.previous.c_str());
+    ImGui::PushID(player.key);
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    if (ImGui::InputTextWithHint("##text", player.default_name, text, sizeof text, ImGuiInputTextFlags_CallbackEdit,
+                                  reject_invalid, &edit)) {
+      ui.settings().Set(player.key, text);
+      blocked[player.key] = edit.blocked;
+    }
+    ImGui::PopID();
+    PlayerNameResult shown = blocked[player.key];
+    if (shown == PlayerNameResult::Ok) {
+      shown = CheckPlayerName(ui.settings().Get(player.key));
+    }
+    if (shown != PlayerNameResult::Ok) {
+      ui.Help(PlayerNameMessage(shown));
+    }
   }
 
   void PageControls(trg::Ui& ui) {
@@ -689,6 +755,12 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
     for (const cheats::CheatInfo& cheat : cheats::kCheats) {
       ui.Toggle(cheat.label, cheat.description, cheat.key, cheats::kCheatDefault, "Off", "On");
     }
+    std::vector<trg::Option> speeds;
+    for (const cheats::MovementSpeedChoice& speed : cheats::kMovementSpeeds) {
+      speeds.push_back({std::to_string(speed.value), speed.label});
+    }
+    ui.Choice(cheats::kMovementSpeedLabel, cheats::kMovementSpeedDescription, cheats::kMovementSpeedKey,
+              std::to_string(cheats::kMovementSpeedDefault).c_str(), speeds);
   }
 
   void PageAchievements(trg::Ui& ui) {

@@ -14,16 +14,18 @@
 
 <img width="1905" height="1071" alt="2026-10-11_18-47" src="https://github.com/user-attachments/assets/08b1ed2c-3244-41c1-94f1-e2ae4c1b76d1" />
 
-## What's new in v0.5.0
+## What's new in v0.6.0
 
-- **High frame rates keep the original game speed**: above 60 FPS the game still updates 60 times per second, and the frames in between are interpolated ([#5](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/issues/5))
-- **Launcher self-update**: the launcher can download and install a newer release for you
-- **Keyboard remapping** on the Controls page, and controller navigation in the launcher and overlays
-- **Exit game** in the main menu
-- the mouse cursor hides while you play with a controller or the keyboard and returns when you use the mouse
-- Windows performance work in the Direct3D 12 renderer, and a crash report in the log if the game crashes
+- **Native HDR output and Smooth glow** (Windows): the game's neon highlights go brighter than SDR white on an HDR display, and bloom/glow gradients fade out smoothly instead of ending in flat steps
+- **In-game Options menu** (**F1**, or **L3 + R3** on a controller): Display, Graphics, HDR, Gameplay, Controls and Cheats, without leaving the game; most settings apply live, a few restart-only ones offer **Restart now**
+- **Renderer and performance improvements**: lower CPU/GPU overhead and steadier frame pacing, especially in busy scenes and at higher render resolutions
+- **Unlock all game modes**: a reversible Gameplay option that makes every mode selectable without touching your saved progression; turning it Off restores your real unlock state exactly
+- **Add 100 Lives**, a **Movement Speed** cheat and a **debug bomb** hotkey, alongside the existing cheats
+- **Configurable local player names** for up to 4 local players; save data is not affected
+- Steadier audio in busy scenes like Evolved and Sequence, from a deeper audio queue
+- Hardened high-refresh visual interpolation and other stability refinements
 
-The full list is in the [v0.5.0 release notes](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/releases/tag/v0.5.0).
+The full list is in the [v0.6.0 release notes](.github/release-notes-v0.6.0.md).
 ## Features
 
 - Controller vibration for gameplay events, off by default (Controls > Vibration). It is a PC-port addition, not a restored original feature
@@ -31,11 +33,13 @@ The full list is in the [v0.5.0 release notes](https://github.com/saulob/geometr
 - TRG launcher that installs the game from your own package and remembers its window position, size, maximized and fullscreen state
 - High frame rate support: 30, 60 (the original), 90, 120, 144, 165, 240 or Unlimited, with gameplay updates capped at 60 Hz so enemy behavior and animations keep the original timing
 - Render resolution up to 4x (5120×2880), internal render resolution (100%, 75% or 50%), graphics card choice on Windows, FXAA, 2x or 4x (Compatibility) multisampling, texture filtering up to 16x, VSync and native aspect ratios (16:9, 16:10, 21:9, 32:9, 4:3, 5:4)
+- HDR output and Smooth glow on Windows: the game's neon light goes above white on an HDR display, and the glow fades out smoothly instead of in flat steps
 - Improved frame pacing and performance, with less unnecessary GPU and CPU work, especially at higher render resolutions
 - Automatic discrete-GPU preference on hybrid systems, and a more reliable Exit Game
 - Frame rate in the window title, and an in-game frame rate counter (**F2**)
 - Local profile and progression, local scores, offline leaderboards, and all 12 achievements (**F7** overlay), with no Xbox Live connection
-- Cheats (Invincible, Infinite Shield, Infinite Bombs), set in the launcher or toggled in game with **F10**
+- An in-game Options menu (**F1**, or **L3 + R3** on a controller) with the launcher's own settings, alongside the launcher itself
+- Cheats (Invincible, Infinite Shield, Infinite Bombs, Movement Speed, Add 100 Lives) and Unlock all game modes, set in the launcher or the in-game Options menu, or toggled in game with **F10**
 - Portable `user_data` folder next to the program, with automatic migration of v0.1.0 data
 - **F11** in the launcher and **F11** in the game are independent: the launcher's fullscreen never changes the game's Display mode
 - The mouse cursor shows on mouse activity and hides on keyboard or controller activity during gameplay
@@ -59,7 +63,7 @@ The launcher checks the Title ID and content type when you pick the package, and
 
 ## Installing
 
-1. Download **GeometryWarsRetroEvolved2-v0.5.0-windows-x64.zip** from the [latest release](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/releases/latest) and extract it anywhere you can write to.
+1. Download **GeometryWarsRetroEvolved2-v0.6.0-windows-x64.zip** from the [latest release](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/releases/latest) and extract it anywhere you can write to.
 2. Run **geometry_wars_retro_evolved_2.exe**. The launcher opens.
 3. On the **Play** page click **Install from package...** and pick your package. It is one file with a long hexadecimal name and no extension. On an Xbox 360 drive it is in `Content\0000000000000000\584108FF\000D0000\`.
 4. Wait until **Ready to play** appears. The game files are copied into the `game` folder next to the program. The package file itself is not copied there.
@@ -107,7 +111,7 @@ The launcher opens before the game. Your choices are saved to `settings.toml` in
 Window size, monitor, VSync, Aspect Ratio and graphics card take effect when you press **PLAY**. If one differs from the launcher's window, the game restarts once in a new window.
 
 ### Graphics
-- **Graphics card** (Windows): Automatic (recommended) or a specific GPU
+- **Graphics card** (Windows): the GPU that renders the game; the first detected one is the default
 - **Render resolution**: Original (1280×720), 2x (2560×1440, recommended for 1440p), 3x (3840×2160) or 4x (5120×2880) at 16:9; the other Aspect Ratios change the width
 - **Internal render resolution**: 100% Native, 75% Performance or 50% Low-end. The GPU draws the game at that share of the Render resolution and scales it up, which lowers the GPU work at some cost in sharpness
 - **Anti-aliasing**: Off, FXAA or FXAA Extreme
@@ -125,8 +129,9 @@ Window size, monitor, VSync, Aspect Ratio and graphics card take effect when you
 - **Invincible**: the player cannot die. A shield or the short protection after a bomb still works as usual.
 - **Infinite Shield**: keeps the player's shield active.
 - **Infinite Bombs**: bombs are not used up when fired. It does not add bombs you do not have.
+- **Movement Speed**: Off, 2x or 4x. Multiplies how fast your ship moves; enemies, shots and the game's speed are unchanged.
 
-All three are Off by default. The launcher's Cheats page saves them and they take effect when you press **PLAY**. Press **F10** while playing to open the Cheats menu: move with Up and Down (arrow keys, D-pad or left stick), toggle with Enter or **A**, close with **F10**, Escape or **B**. The game ignores input while the menu is open. Changes made in the menu last for the current session only; the launcher's saved values are not changed. Scores, leaderboards and achievements are not disabled by cheats.
+All cheats are Off by default. The launcher's Cheats page saves them and they take effect when you press **PLAY**. Press **F10** while playing to open the Cheats menu: move with Up and Down (arrow keys, D-pad or left stick), toggle or change with Enter or **A**, close with **F10**, Escape or **B**. The game ignores input while the menu is open. Changes made in the menu last for the current session only; the launcher's saved values are not changed. Scores, leaderboards and achievements are not disabled by cheats.
 
 ### Controls
 - Xbox controllers work without setup
@@ -188,6 +193,7 @@ How the launcher, settings and installer work is described in [docs/launcher.md]
 - [Offline profile and save](docs/offline-profile.md)
 - [Offline Xbox Live services](docs/offline-live.md)
 - [Cheats](docs/cheats.md)
+- F9 adds one bomb, for debugging/testing.
 - [ReXGlue runtime patches](docs/rexglue-runtime-patch.md)
 - [ReXGlue GPU plugin patch](docs/rexglue-gpu-patch.md)
 - [Saves and settings: the portable user_data folder](docs/user-data.md)

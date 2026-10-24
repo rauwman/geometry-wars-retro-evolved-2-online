@@ -33,7 +33,7 @@ int g_checks = 0;
 
 void TestValues() {
   std::printf("values\n");
-  CHECK(!ParseGraphicsAdapter(kGraphicsAdapterAuto));
+  CHECK(!ParseGraphicsAdapter("auto"));
   CHECK(!ParseGraphicsAdapter(""));
   CHECK(!ParseGraphicsAdapter("-1"));
   CHECK(!ParseGraphicsAdapter("1x"));
@@ -43,16 +43,19 @@ void TestValues() {
   CHECK(ParseGraphicsAdapter("12") == 12);
 
   const std::vector<GraphicsAdapter> adapters = {{0, "NVIDIA GeForce RTX 4070"}, {1, "Intel UHD Graphics 730"}};
-  CHECK(ResolveGraphicsAdapter(kGraphicsAdapterAuto, adapters) == -1);
+  CHECK(ResolveGraphicsAdapter("auto", adapters) == 0);
+  CHECK(ResolveGraphicsAdapter("", adapters) == 0);
   CHECK(ResolveGraphicsAdapter("0", adapters) == 0);
   CHECK(ResolveGraphicsAdapter("1", adapters) == 1);
-  // A saved card that is gone falls back to Automatic.
-  CHECK(ResolveGraphicsAdapter("2", adapters) == -1);
-  CHECK(ResolveGraphicsAdapter("1", {}) == -1);
+  // A saved card that is gone falls back to the first adapter.
+  CHECK(ResolveGraphicsAdapter("2", adapters) == 0);
+  CHECK(!ResolveGraphicsAdapter("1", {}));
+  CHECK(!ResolveGraphicsAdapter("auto", {}));
   // The value is the DXGI index, not the position in the list.
   const std::vector<GraphicsAdapter> gap = {{1, "A"}, {3, "B"}};
   CHECK(ResolveGraphicsAdapter("3", gap) == 3);
-  CHECK(ResolveGraphicsAdapter("0", gap) == -1);
+  CHECK(ResolveGraphicsAdapter("0", gap) == 1);
+  CHECK(ResolveGraphicsAdapter("auto", gap) == 1);
 }
 
 #if defined(_WIN32)
