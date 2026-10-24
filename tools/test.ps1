@@ -22,6 +22,11 @@
 $ErrorActionPreference = 'Stop'
 
 $Root = Split-Path $PSScriptRoot -Parent
+
+# -DGW2_SRC_DIR="path" needs its quotes to reach clang: PowerShell 7.3 and later pass them as written, Windows
+# PowerShell 5.1 and 7.0 to 7.2 strip them unless they are escaped.
+$SrcDirPath = (Join-Path $Root 'src') -replace '\\', '/'
+$SrcDirDefine = if ($PSVersionTable.PSVersion -ge [version]'7.3') { '-DGW2_SRC_DIR="' + $SrcDirPath + '"' } else { '-DGW2_SRC_DIR=\"' + $SrcDirPath + '\"' }
 $OutDir = Join-Path $Root 'build\tests'
 $Exe = Join-Path $OutDir 'live_tests.exe'
 $RulesExe = Join-Path $OutDir 'achievements_overlay_rules_tests.exe'
@@ -86,7 +91,7 @@ try {
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
         -isystem (Join-Path $Root 'tools\rexglue\win-amd64\include') `
-        ('-DGW2_SRC_DIR="' + ((Join-Path $Root 'src') -replace '\\', '/') + '"') `
+        $SrcDirDefine `
         (Join-Path $Root 'tests\window_host_tests.cpp') -o $WindowHostExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
@@ -114,7 +119,7 @@ try {
         (Join-Path $Root 'tests\cheats_tests.cpp') -o $CheatsExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
-        ('-DGW2_SRC_DIR="' + ((Join-Path $Root 'src') -replace '\\', '/') + '"') `
+        $SrcDirDefine `
         (Join-Path $Root 'tests\unlock_all_modes_tests.cpp') -o $UnlockAllModesExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
@@ -141,7 +146,7 @@ try {
     & $Clang -std=c11 -O1 -c (Join-Path $Root 'src\updater\third_party\miniz\miniz.c') -o (Join-Path $OutDir 'miniz.obj')
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') `
-        ('-DGW2_SRC_DIR="' + ((Join-Path $Root 'src') -replace '\\', '/') + '"') `
+        $SrcDirDefine `
         (Join-Path $Root 'tests\update_tests.cpp') `
         (Join-Path $Root 'src\updater\github_release.cpp') (Join-Path $Root 'src\updater\install_transaction.cpp') `
         (Join-Path $Root 'src\updater\json.cpp') (Join-Path $Root 'src\updater\sha256.cpp') `

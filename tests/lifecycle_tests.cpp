@@ -2,6 +2,7 @@
 // while a normal guest exit keeps the graceful teardown in OnShutdown. The decision is read from the app source (the
 // window calls need the running game). Run: gw2_lifecycle_tests
 
+#include <algorithm>
 #include <cstdio>
 #include <fstream>
 #include <sstream>
@@ -25,7 +26,10 @@ std::string ReadSource(const char* name) {
   std::ifstream in(std::string(GW2_SRC_DIR) + "/" + name, std::ios::binary);
   std::ostringstream text;
   text << in.rdbuf();
-  return text.str();
+  // A Windows checkout may have CRLF line endings; the tests match LF text.
+  std::string source = text.str();
+  source.erase(std::remove(source.begin(), source.end(), '\r'), source.end());
+  return source;
 }
 
 bool Has(const std::string& text, const char* needle) {

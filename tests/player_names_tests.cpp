@@ -2,6 +2,7 @@
 // and that the display name never reaches the profile identity (XUID, content directory).
 // Run: player_names_tests
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -33,7 +34,10 @@ std::string ReadFile(const std::string& path) {
   std::ifstream in(path, std::ios::binary);
   std::ostringstream text;
   text << in.rdbuf();
-  return text.str();
+  // A Windows checkout may have CRLF line endings; the tests match LF text.
+  std::string source = text.str();
+  source.erase(std::remove(source.begin(), source.end(), '\r'), source.end());
+  return source;
 }
 
 std::string ReadSource(const char* name) {

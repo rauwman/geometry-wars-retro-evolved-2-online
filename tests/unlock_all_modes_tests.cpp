@@ -2,6 +2,7 @@
 // Options menu and the guest hooks are wired to the one setting. Logic and source checks only; the hooks
 // themselves need the running runtime.
 
+#include <algorithm>
 #include "unlock_all_modes.h"
 
 #include <cstdio>
@@ -42,7 +43,10 @@ std::string ReadSource(const std::string& name) {
   std::ifstream in(kSrcDir / name, std::ios::binary);
   std::ostringstream text;
   text << in.rdbuf();
-  return text.str();
+  // A Windows checkout may have CRLF line endings; the tests match LF text.
+  std::string source = text.str();
+  source.erase(std::remove(source.begin(), source.end(), '\r'), source.end());
+  return source;
 }
 
 int Count(const std::string& text, const std::string& needle) {

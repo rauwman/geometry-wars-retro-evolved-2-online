@@ -1,6 +1,7 @@
 // Cheat tests: the shared cheat list, the session layer, the in-game menu model and the host hotkeys.
 // Logic and source checks only: the menu, the cvars and the input listeners need the running runtime.
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 #include <filesystem>
@@ -49,7 +50,10 @@ std::string ReadSource(const std::string& name) {
   std::ifstream in(kSrcDir / name, std::ios::binary);
   std::ostringstream text;
   text << in.rdbuf();
-  return text.str();
+  // A Windows checkout may have CRLF line endings; the tests match LF text.
+  std::string source = text.str();
+  source.erase(std::remove(source.begin(), source.end(), '\r'), source.end());
+  return source;
 }
 
 std::vector<std::string> SourceNames() {
