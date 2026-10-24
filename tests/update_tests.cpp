@@ -444,10 +444,11 @@ void TestPackagingNames() {
   const std::string windows_package = ReadFile(std::string(GW2_SRC_DIR) + "/../tools/package-release.ps1");
   const std::string linux_package = ReadFile(std::string(GW2_SRC_DIR) + "/../tools/package-linux.sh");
   const std::string tests = ReadFile(std::string(GW2_SRC_DIR) + "/../tools/test.ps1");
-  CHECK(config.find("GeometryWarsRetroEvolved2-windows-x64.zip") != std::string::npos);
+  CHECK(config.find("GeometryWarsRetroEvolved2-v\" + version.CoreString() + \"-windows-x64.zip") !=
+        std::string::npos);
   CHECK(config.find("GeometryWarsRetroEvolved2Recompiled-v\" + version.CoreString() + \"-x86_64.AppImage") !=
         std::string::npos);
-  CHECK(windows_package.find("$Name = \"GeometryWarsRetroEvolved2-windows-x64\"") != std::string::npos);
+  CHECK(windows_package.find("GeometryWarsRetroEvolved2-v$ModVersion-windows-x64") != std::string::npos);
   CHECK(windows_package.find("trg-updater.exe") != std::string::npos);
   CHECK(linux_package.find("GeometryWarsRetroEvolved2Recompiled-v$MOD_VERSION-x86_64") != std::string::npos);
   CHECK(tests.find("trg-updater.exe") != std::string::npos);
