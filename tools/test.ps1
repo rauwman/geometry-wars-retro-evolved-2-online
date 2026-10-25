@@ -11,7 +11,9 @@
   format and the sampler), tests\cheats_tests.cpp (the cheat settings, the in-game menu model and the host
   hotkeys), tests\unlock_all_modes_tests.cpp (the profile-mask override logic and its launcher/Options-menu/hook
   wiring) and tests\user_data_tests.cpp (the portable user_data root and the move of the system
-  folder into it), with Visual Studio's clang++, then checks that the release folder check refuses user data and
+  folder into it), tests\update_tests.cpp and tests\update_helper_tests.cpp (the real trg-updater.exe run from a
+  temporary folder, and again against the release CLANG64 build when build-updater.ps1 has made one), with Visual
+  Studio's clang++, then checks that the release folder check refuses user data and
   saves (scratch folders only). No game files and no ReXGlue runtime are needed. The
   launcher tests need TRG Launcher: third_party\trg-launcher, or the folder named by GW2_TRG_LAUNCHER_DIR.
 
@@ -37,6 +39,13 @@ $UnlockAllModesExe = Join-Path $OutDir 'unlock_all_modes_tests.exe'
 $AdapterExe = Join-Path $OutDir 'graphics_adapter_tests.exe'
 $AspectExe = Join-Path $OutDir 'aspect_ratio_tests.exe'
 $UpdateExe = Join-Path $OutDir 'update_tests.exe'
+$UpdaterExe = Join-Path $OutDir 'trg-updater.exe'
+$UpdateHelperExe = Join-Path $OutDir 'update_helper_tests.exe'
+$ReleaseUpdater = Join-Path $Root 'build-release\trg-updater-clang64\trg-updater.exe'
+
+$cmake = Get-Content (Join-Path $Root 'CMakeLists.txt') -Raw
+if ($cmake -notmatch '(?s)add_executable\(trg-updater WIN32\s+([^)]*)\)') { throw 'The trg-updater target was not found in CMakeLists.txt' }
+$UpdaterSources = @($Matches[1] -split '\s+' | Where-Object { $_ } | ForEach-Object { Join-Path $Root $_ })
 
 $TrgDir = Join-Path $Root 'third_party\trg-launcher'
 if (-not (Test-Path (Join-Path $TrgDir 'src\settings.cpp'))) {
@@ -131,6 +140,15 @@ try {
         (Join-Path $Root 'src\updater\version.cpp') (Join-Path $OutDir 'miniz.obj') `
         -lshell32 -o $UpdateExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
+    & $ClangXX -std=c++23 -O1 -Wall -Wextra -I (Join-Path $Root 'src') @UpdaterSources `
+        -lshell32 '-Wl,/subsystem:windows' -o $UpdaterExe
+    if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
+    # The helper test is also the program the helper restarts, which the helper starts without a console.
+    & $ClangXX -std=c++23 -O1 -Wall -Wextra `
+        ('-DGW2_UPDATER_EXE="' + ($UpdaterExe -replace '\\', '/') + '"') `
+        (Join-Path $Root 'tests\update_helper_tests.cpp') `
+        -lshell32 '-Wl,/subsystem:windows' '-Wl,/entry:mainCRTStartup' -o $UpdateHelperExe
+    if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
 } finally {
     foreach ($name in @([Environment]::GetEnvironmentVariables().Keys)) {
         if (-not $SavedEnv.Contains($name)) { Remove-Item "Env:$name" }
@@ -168,8 +186,18 @@ if ($LASTEXITCODE) { throw "Graphics card tests failed ($LASTEXITCODE)" }
 if ($LASTEXITCODE) { throw "Aspect ratio tests failed ($LASTEXITCODE)" }
 & $UpdateExe
 if ($LASTEXITCODE) { throw "Updater tests failed ($LASTEXITCODE)" }
+# Piped, so PowerShell waits for the windowless test and shows its output.
+Write-Host 'update helper'
+& $UpdateHelperExe | Out-Host
+if ($LASTEXITCODE) { throw "Updater helper tests failed ($LASTEXITCODE)" }
+if (Test-Path -LiteralPath $ReleaseUpdater) {
+    Write-Host "update helper (release CLANG64 build: $ReleaseUpdater)"
+    & $UpdateHelperExe $ReleaseUpdater | Out-Host
+    if ($LASTEXITCODE) { throw "Updater helper tests failed against the release CLANG64 build ($LASTEXITCODE)" }
+}
 
-# The release check accepts a fresh extraction and refuses user data, migration leftovers, saves, logs and game files.
+# The release check accepts a fresh extraction and refuses user data, migration leftovers, saves, logs, game files,
+# symbols, updater leftovers, debugging tools and development markers.
 $ReleaseCheck = Join-Path $PSScriptRoot 'package-release.ps1'
 $StageRoot = Join-Path $OutDir 'release_check'
 $ReleaseCases = [ordered]@{
@@ -183,6 +211,24 @@ $ReleaseCases = [ordered]@{
     'migration leftover'  = 'user_data.migrating\'
     'log'                 = 'logs\geometry_wars_retro_evolved_2_001.log'
     'game file'           = 'game\default.xex'
+    'updater pdb'         = 'trg-updater.pdb'
+    'debug file'          = 'trg-updater.debug'
+    'updater workspace'   = 'trg-update-1234-5678\job.txt'
+    'renderdoc'           = 'renderdoc.dll'
+    'vulkan layer'        = 'VkLayer_test.json'
+    'vulkan loader'       = 'vulkan-1.dll'
+    'Xbox package'        = 'rexruntime.dll'
+    'Xbox executable'     = 'rexgpu-xenos.dll'
+    'DEBUG_SAULO marker'  = 'README.txt'
+    'repository path'     = 'geometry_wars_retro_evolved_2.toml'
+    'user profile path'   = 'geometry_wars_retro_evolved_2.toml'
+}
+$ReleaseContent = @{
+    'Xbox package'       = 'LIVE'
+    'Xbox executable'    = 'XEX2'
+    'DEBUG_SAULO marker' = 'DEBUG_SAULO'
+    'repository path'    = "cache_root = '$Root'"
+    'user profile path'  = "cache_root = '$env:USERPROFILE'"
 }
 Write-Host 'release check'
 $releaseFailures = 0
@@ -202,7 +248,8 @@ foreach ($case in $ReleaseCases.Keys) {
             New-Item -ItemType Directory -Force $target | Out-Null
         } else {
             New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
-            Set-Content -LiteralPath $target -Value 'placeholder'
+            $content = if ($ReleaseContent.Contains($case)) { $ReleaseContent[$case] } else { 'placeholder' }
+            Set-Content -LiteralPath $target -Value $content -NoNewline
         }
     }
     $global:LASTEXITCODE = 0

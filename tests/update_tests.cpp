@@ -407,8 +407,18 @@ void TestInstallAndRollback() {
     std::filesystem::rename(from, to, ec);
     return !ec;
   };
+  std::string install_log;
+  fail.log = [&install_log](std::string_view text) {
+    install_log += text;
+    install_log += '\n';
+  };
   const InstallOutcome failed = InstallFiles(job, fail, false);
   CHECK(failed.status == InstallStatus::kInstallFailedRolledBack);
+  CHECK(install_log.find("backup complete\n") != std::string::npos);
+  CHECK(install_log.find("install failed: ") != std::string::npos);
+  CHECK(install_log.find("rollback start\n") != std::string::npos);
+  CHECK(install_log.find("rollback complete\n") != std::string::npos);
+  CHECK(install_log.find("replacement complete") == std::string::npos);
   CHECK(ReadFile(install / "geometry_wars_retro_evolved_2.exe") == "old launcher");
   CHECK(!std::filesystem::exists(install / "trg-updater.exe"));
   CHECK(ReadFile(install / "rexruntime.dll") == "old runtime");

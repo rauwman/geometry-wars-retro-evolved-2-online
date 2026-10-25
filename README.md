@@ -14,18 +14,14 @@
 
 <img width="1080" height="639" alt="image" src="https://github.com/user-attachments/assets/4186f8c0-a249-44a6-8f37-7f67c4034705" />
 
-## What's new in v0.6.0
+## What's new in v0.6.1
 
-- **Native HDR output and Smooth glow** (Windows): the game's neon highlights go brighter than SDR white on an HDR display, and bloom/glow gradients fade out smoothly instead of ending in flat steps
-- **In-game Options menu** (**F1**, or **L3 + R3** on a controller): Display, Graphics, HDR, Gameplay, Controls and Cheats, without leaving the game; most settings apply live, a few restart-only ones offer **Restart now**
-- **Renderer and performance improvements**: lower CPU/GPU overhead and steadier frame pacing, especially in busy scenes and at higher render resolutions
-- **Unlock all game modes**: a reversible Gameplay option that makes every mode selectable without touching your saved progression; turning it Off restores your real unlock state exactly
-- **Add 100 Lives**, a **Movement Speed** cheat and a **debug bomb** hotkey, alongside the existing cheats
-- **Configurable local player names** for up to 4 local players; save data is not affected
-- Steadier audio in busy scenes like Evolved and Sequence, from a deeper audio queue
-- Hardened high-refresh visual interpolation and other stability refinements
+- **Windows update helper packaging**: `trg-updater.exe` is now built with MSYS2 CLANG64, a model already validated in other ports, to reduce heuristic antivirus false positives
+- Updates work as before: v0.6.0 installs v0.6.1 from the launcher, and the Windows ZIP keeps its flat layout so the updater can install it
+- No gameplay changes
 
-The full list is in the [v0.6.0 release notes](.github/release-notes-v0.6.0.md).
+The details are in the [v0.6.1 release notes](.github/release-notes-v0.6.1.md). HDR output, Smooth glow, the in-game Options menu and the other features added in v0.6.0 are described in the [v0.6.0 release notes](.github/release-notes-v0.6.0.md).
+
 ## Features
 
 - Controller vibration for gameplay events, off by default (Controls > Vibration). It is a PC-port addition, not a restored original feature
@@ -63,7 +59,7 @@ The launcher checks the Title ID and content type when you pick the package, and
 
 ## Installing
 
-1. Download **GeometryWarsRetroEvolved2-v0.6.0-windows-x64.zip** from the [latest release](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/releases/latest) and extract it anywhere you can write to.
+1. Download **GeometryWarsRetroEvolved2-v0.6.1-windows-x64.zip** from the [latest release](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled/releases/latest) and extract it anywhere you can write to.
 2. Run **geometry_wars_retro_evolved_2.exe**. The launcher opens.
 3. On the **Play** page click **Install from package...** and pick your package. It is one file with a long hexadecimal name and no extension. On an Xbox 360 drive it is in `Content\0000000000000000\584108FF\000D0000\`.
 4. Wait until **Ready to play** appears. The game files are copied into the `game` folder next to the program. The package file itself is not copied there.
@@ -179,7 +175,7 @@ In an existing clone, run `git submodule update --init --recursive`.
 2. Extract your package's files into `game\extracted` (`.\tools\extract_stfs.ps1 -Package "<package file>" -OutDir game\extracted`), so that `game\extracted\default.xex` exists.
 3. `.\tools\codegen.ps1` downloads the pinned ReXGlue SDK 0.10.0, checks `default.xex` and generates the C++ into `generated\`.
 4. `.\tools\build.ps1` builds `build\geometry_wars_retro_evolved_2.exe`. `.\tools\build.ps1 -Run` also starts it. The first build also builds the project's patched ReXGlue runtime (see [docs/rexglue-runtime-patch.md](docs/rexglue-runtime-patch.md)).
-5. `.\tools\package-release.ps1` builds a Release into `build-release\` (add `-Clean` for a clean build) and makes the release ZIP and its `.sha256` file in `dist\`.
+5. `.\tools\package-release.ps1` builds a Release into `build-release\` (add `-Clean` for a clean build), builds the update helper `trg-updater.exe` with MSYS2 CLANG64 (`pacman -S mingw-w64-clang-x86_64-toolchain`) and makes the release ZIP and its `.sha256` file in `dist\`.
 
 On Linux, `tools/build.sh` is the normal build and `tools/package-linux.sh` makes the AppImage. See [docs/linux.md](docs/linux.md).
 
