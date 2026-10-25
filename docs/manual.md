@@ -17,9 +17,9 @@
 <img width="1905" height="1071" alt="2026-10-11_18-47" src="https://github.com/user-attachments/assets/08b1ed2c-3244-41c1-94f1-e2ae4c1b76d1" />
 
 > **This is a fork** of [saulob/geometry-wars-retro-evolved-2-recompiled](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled). It adds an
-> optional **friends leaderboard**: friends who run their own small server see each other's scores in the game's own
+> optional **online leaderboard**: a hosted global board plus a friends board, shown in the game's own
 > leaderboard screens. Everything else is the original port, with all credit to its author. See
-> [docs/online.md](online.md). Without a server address the game stays fully offline, as before.
+> [docs/online.md](online.md). Without an online name the game stays fully offline, as before.
 
 
 ## What's new in v0.4.0
@@ -43,7 +43,7 @@ The full list is in the [v0.4.0 release notes](https://github.com/saulob/geometr
 - Automatic discrete-GPU preference on hybrid systems, and a more reliable Exit Game
 - Frame rate in the window title, and an in-game frame rate counter (**F2**)
 - Local profile and progression, local scores, offline leaderboards, and all 12 achievements (**F7** overlay), with no Xbox Live connection
-- Optional friends leaderboard (this fork): pick an online name in the launcher, and your best scores and your friends' show up in the game's Overall, My score and Friends boards. Needs a leaderboard server run by someone you know; see [docs/online.md](online.md)
+- Optional online leaderboard (this fork): pick an online name in the launcher, and your best scores show up in the game's Overall, My score and Friends boards. The server is hosted and built in; see [docs/online.md](online.md)
 - Cheats (Invincible, Infinite Shield, Infinite Bombs), set in the launcher or toggled in game with **F10**
 - Portable `user_data` folder next to the program, with automatic migration of v0.1.0 data
 - **F11** in the launcher and **F11** in the game are independent: the launcher's fullscreen never changes the game's Display mode
@@ -91,9 +91,9 @@ Your settings, profile, scores, achievements, saves and progression, and the sha
 If FUSE cannot mount the AppImage (for example in a restricted environment), it unpacks itself into a private temporary folder and runs from there. You do not need `APPIMAGE_EXTRACT_AND_RUN=1`.
 1. Download **GeometryWarsRetroEvolved2Recompiled-v…-x86_64.AppImage** from the release and mark it executable (right-click > **Properties** > **Permissions** > **Is executable**, or `chmod +x`).
 2. Run it, then install your package from the **Play** page as above. The game files go in a `game` folder next to the AppImage. The package picker needs `zenity` or `kdialog`.
-3. On a Steam Deck (intended flow, not yet tried on a Deck), do this in **Desktop Mode**, then add the AppImage with **Games > Add a Non-Steam Game to My Library** and play it from **Game Mode**.
+3. On a Steam Deck (tested by the fork's maintainer), do this in **Desktop Mode**, then add the AppImage with **Games > Add a Non-Steam Game to My Library** and play it from **Game Mode**.
 
-The friends leaderboard (fork feature, [docs/online.md](online.md)) is built into the Linux build too. It needs the system `libcurl.so.4`, which a Steam Deck and most distributions have. It is untested on real hardware so far.
+The online leaderboard (fork feature, [docs/online.md](online.md)) is built into the Linux build too. It needs the system `libcurl.so.4`, which a Steam Deck and most distributions have.
 
 Settings and saves are in `user_data` and logs in `logs`, both next to the AppImage file (not inside it). Requirements, known limits and building the AppImage are in [docs/linux.md](linux.md).
 

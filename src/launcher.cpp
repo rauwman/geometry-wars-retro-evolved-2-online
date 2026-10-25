@@ -507,7 +507,7 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
       case PageId::kCheats:
         return {name, "Optional gameplay modifiers", [this](trg::Ui& ui) { PageCheats(ui); }, nullptr};
       case PageId::kOnline:
-        return {name, "Your name on the friends leaderboard.", [this](trg::Ui& ui) { online_.Draw(ui); }, nullptr};
+        return {name, "Your name on the global leaderboard.", [this](trg::Ui& ui) { online_.Draw(ui); }, nullptr};
       case PageId::kAchievements:
         return {name, "Your achievements on this PC.", [this](trg::Ui& ui) { PageAchievements(ui); }, nullptr};
       case PageId::kAbout:

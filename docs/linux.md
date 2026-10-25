@@ -1,7 +1,7 @@
 # Linux and Steam Deck
 
 > **Experimental.** The Linux build is a native x86_64 program, not a Windows build under Proton or Wine. It has been
-> tested on one Steam Deck, where it runs at 60 to 90 FPS (see [Known limits](#known-limits)). Reports are welcome.
+> tested on one Steam Deck, where it runs at 60 to 120 FPS (see [Known limits](#known-limits)). Reports are welcome.
 
 The Linux build uses the same code as the Windows build: ReXGlue SDK 0.10.0's Linux runtime, the Xenos GPU
 plugin's Vulkan backend, and the same TRG launcher. It ships as one AppImage, which is also the Steam Deck build.
@@ -35,7 +35,7 @@ is older than GCC 13.
 
 ### Steam Deck
 
-The fork's maintainer tested this on a Steam Deck: the game runs at 60 to 90 FPS. The frame rate you get is capped by
+The fork's maintainer tested this on a Steam Deck: the game runs at 60 to 120 FPS. The frame rate you get is capped by
 the launcher's frame rate setting and by the display (60 Hz on the LCD model, 90 Hz on the OLED).
 
 Set the frame rate to **60 or 120 FPS**: the game simulates at 60 steps per second, and at 90 or 144 FPS busy scenes such as explosions can stutter (the same with upstream's build).
@@ -99,7 +99,7 @@ failure rules.
   [rexglue-gpu-patch.md](rexglue-gpu-patch.md)), and the reporter confirmed it.
 - **The same symptom on a Steam Deck** (about 30 FPS, the music slowing down with it) was traced in this fork to the
   runtime's write-watch fault handler, which searched `/proc/self/maps` for every fault under a global lock, and is
-  fixed by patches 0058 and 0059 ([the details](rexglue-runtime-patch.md#why-0058-and-0059)): 60 to 90 FPS on the
+  fixed by patches 0058 and 0059 ([the details](rexglue-runtime-patch.md#why-0058-and-0059)): 60 to 120 FPS on the
   maintainer's Deck. Whether the Steam Machine report has the same cause is not confirmed. Linux 6.11 or newer answers
   the lookup directly; older kernels use the second patch's path. `--procmap_query=false` forces that path.
 - Controller vibration (Controls > Vibration, off by default) is included in the Linux build but has not been confirmed on a real controller or a Steam Deck.
