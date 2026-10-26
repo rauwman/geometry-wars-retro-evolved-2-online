@@ -185,7 +185,7 @@ In an existing clone, run `git submodule update --init --recursive`.
 2. Extract your package's files into `game\extracted` (`.\tools\extract_stfs.ps1 -Package "<package file>" -OutDir game\extracted`), so that `game\extracted\default.xex` exists.
 3. `.\tools\codegen.ps1` downloads the pinned ReXGlue SDK 0.10.0, checks `default.xex` and generates the C++ into `generated\`.
 4. `.\tools\build.ps1` builds `build\geometry_wars_retro_evolved_2.exe`. `.\tools\build.ps1 -Run` also starts it. The first build also builds the project's patched ReXGlue runtime (see [docs/rexglue-runtime-patch.md](rexglue-runtime-patch.md)).
-5. `.\tools\package-release.ps1` builds a Release into `build-release\` (add `-Clean` for a clean build) and makes the release ZIP and its `.sha256` file in `dist\`.
+5. `.\tools\package-release.ps1` builds a Release into `build-release\` (add `-Clean` for a clean build), builds the update helper `trg-updater.exe` with MSYS2 CLANG64 (`pacman -S mingw-w64-clang-x86_64-toolchain`) and makes the release ZIP and its `.sha256` file in `dist\`.
 
 On Linux, `tools/build.sh` is the normal build and `tools/package-linux.sh` makes the AppImage. See [docs/linux.md](linux.md).
 

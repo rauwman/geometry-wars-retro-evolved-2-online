@@ -9,22 +9,30 @@ and refuse to continue if anything forbidden is staged. Origin: `9e6f05b` (first
 Name `GeometryWarsRetroEvolved2-v<VERSION>-windows-x64.zip` plus `.sha256` (`<hash>  <name>.zip`, lowercase, LF).
 `VERSION` is parsed from the `project(... VERSION x.y.z)` line of `CMakeLists.txt`.
 
-Steps (`package-release.ps1`): build Release into `build-release/` (`-Clean`, `-SkipBuild` available) -> verify the
+Steps (`package-release.ps1`): build Release into `build-release/` (`-Clean`, `-SkipBuild` available) and the update
+helper into `build-release/trg-updater-clang64/` (`tools/build-updater.ps1`) -> verify the
 patched runtime (`Test-PatchedRuntime`, `Test-StagedRuntime`) -> stage files -> check DLL hashes equal the SDK's -> copy
-`LICENSE`, `licenses/*`, substitute `@VERSION@` in `packaging/README.txt` (CRLF, UTF-8 no BOM) -> run the folder check ->
-write the ZIP with entries sorted and compared to the staged list, rejecting unsafe entry names -> write the hash file.
+`LICENSE`, `licenses/*`, substitute `@VERSION@` in `packaging/README.txt` (CRLF, UTF-8 no BOM) -> check the staged
+helper is self-contained and stripped -> run the folder check -> write the flat ZIP (the updater expects
+`geometry_wars_retro_evolved_2.exe` at the archive root), extract it again and compare every file with the staged one
+-> write the hash file. `-OutDir <dir>` writes somewhere other than `dist/`.
 
-Contents (exactly): `geometry_wars_retro_evolved_2.exe`, `rexruntime.dll`, `rexgpu-xenos.dll`,
+The packaged `trg-updater.exe` is the MSYS2 CLANG64 build (clang and LLD, `-O2 -g -DNDEBUG -mwindows -static`, Windows
+system DLLs and the UCRT only); its `trg-updater.debug` goes to `dist/<name>-symbols/`, outside the ZIP. CMake's
+`trg-updater` target is only for development builds.
+
+Contents (exactly): `geometry_wars_retro_evolved_2.exe`, `trg-updater.exe`, `rexruntime.dll`, `rexgpu-xenos.dll`,
 `geometry_wars_retro_evolved_2.toml`, `README.txt`, `LICENSE`, `licenses/ReXGlue-LICENSE.txt`,
-`licenses/THIRD-PARTY-LICENSES.txt`. No game files, no `user_data`, no logs, no symbols, no PDBs.
+`licenses/THIRD-PARTY-LICENSES.txt`, `assets/launcher/header-art.png`. No game files, no `user_data`, no logs, no
+symbols, no PDBs.
 
-`-VerifyOnly <folder>` runs just the folder check; `tools/test.ps1` uses it on scratch folders.
+`-VerifyOnly <folder or ZIP>` runs just the folder check; `tools/test.ps1` uses it on scratch folders.
 
 ### The release-folder check (`Test-ReleaseFolder`) - the scanning idea applies to every project; the forbidden-name list below is this game's and must be adapted
-- Forbidden names: `default.xex`, `Data.bin`, `game`, `game-install-temp`, `game-install-backup`, `user_data`, `user_data.migrating`, `content`, `cache`, `logs`, `settings.toml`, `settings.toml.bak`, `ArcadeInfo.xml`, `nxeart`, the title id.
-- Forbidden types: `*.xex *.log *.dmp *.pdb *.xsh *.xpso *.bak *.tmp *.sav`.
-- Magic bytes `LIVE`, `PIRS`, `CON ` (Xbox 360 packages) rejected anywhere.
-- Local repository path (as text and as UTF-16) rejected inside any file.
+- Forbidden names: `default.xex`, `Data.bin`, `game`, `game-install-temp`, `game-install-backup`, `user_data`, `user_data.migrating`, `content`, `cache`, `logs`, `settings.toml`, `settings.toml.bak`, `ArcadeInfo.xml`, `nxeart`, the title id, `vulkan-1.dll`.
+- Forbidden types: `*.xex *.log *.dmp *.pdb *.debug *.xsh *.xpso *.bak *.tmp *.sav trg-update-* VkLayer_* renderdoc*`.
+- Magic bytes `LIVE`, `PIRS`, `CON ` (Xbox 360 packages) and `XEX2` rejected anywhere.
+- Local repository and user profile paths (as text and as UTF-16) and `DEBUG_SAULO` rejected inside any file.
 - Anything outside the expected file list rejected, and every expected file must exist.
 
 ## Linux AppImage

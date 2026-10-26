@@ -1,13 +1,13 @@
 # SDK boilerplate lives in generated/rexglue.cmake.
 
 cmake_minimum_required(VERSION 3.25)
-project(geometry_wars_retro_evolved_2 VERSION 0.6.0 LANGUAGES C CXX)
+project(geometry_wars_retro_evolved_2 VERSION 0.6.1 LANGUAGES C CXX)
 set(GW2_VERSION_SUFFIX "")
 # This fork's own version. It is the version of a release (tag v<this>, ZIP GeometryWarsRetroEvolved2-v<this>-windows-x64.zip)
 # and the one the launcher's self-update compares. The project VERSION above stays the upstream version this fork is based on.
 # The 1.x range is deliberate: upstream tags are v0.x, so the fork's tags never collide with fetched upstream tags.
 # Read by tools\package-release.ps1 and tools/package-linux.sh.
-set(GW2_MOD_VERSION "1.2.0")
+set(GW2_MOD_VERSION "1.2.1")
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -339,6 +339,7 @@ if(TARGET geometry_wars_retro_evolved_2_recomp)
     gw2_enable_thinlto(geometry_wars_retro_evolved_2_recomp)
 endif()
 
+# Release packages ship the MSYS2 CLANG64 build of these sources (tools/build-updater.ps1).
 if(WIN32)
     add_executable(trg-updater WIN32
         src/updater/helper_main.cpp
@@ -351,7 +352,6 @@ if(WIN32)
     target_include_directories(trg-updater PRIVATE src)
     target_link_libraries(trg-updater PRIVATE shell32)
     set_target_properties(trg-updater PROPERTIES OUTPUT_NAME "trg-updater")
-    gw2_enable_thinlto(trg-updater)
 endif()
 
 target_compile_definitions(geometry_wars_retro_evolved_2 PRIVATE

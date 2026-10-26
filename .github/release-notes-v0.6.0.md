@@ -9,6 +9,7 @@ v0.6.0 is a major visual, performance and quality-of-life update: native HDR out
 - **Native HDR output (Windows)**: an FP16 scRGB swap chain lets the game's neon highlights go brighter than SDR white on a compatible HDR display, with paper white and peak brightness controls and further HDR tuning in the in-game Options menu. Requires Windows HDR to be on for the display; Direct3D 12 only.
 - **Smooth glow (Windows)**: bloom and glow gradients fade out smoothly instead of ending in the original's flat, hard-edged steps. On by default; a Graphics setting restores the original behavior.
 - **In-game Options menu**: **F1**, or **L3 + R3** on a controller, opens Display, Graphics, HDR, Gameplay, Controls and Cheats while playing. Most settings apply at once; the few that still need a restart show "Some changes apply after a restart" with a **Restart now** prompt.
+- **Launcher self-update**: built-in updates, available since v0.5.0, can download and install newer releases while preserving game files, saves, settings and logs.
 - **Renderer and performance improvements**: additional optimizations in the Direct3D 12 command and texture-cache paths reduce CPU/GPU overhead, especially in busy scenes and at higher render resolutions.
 
 ## HDR and Smooth glow
@@ -96,3 +97,4 @@ Each download has a matching `.sha256` file. Compare the SHA-256 of the file you
 | `GeometryWarsRetroEvolved2Recompiled-v0.6.0-x86_64.AppImage` | `5d3082de5089a085e5f20fdfeb5b2dd8677645e6a247777ade5f9b33ec8fbd09` |
 
 These are the checksums of the artifacts currently built in the local `dist/` folder. Re-verify them against the files actually attached to the published GitHub release before announcing it, in case the release build is repeated.
+
