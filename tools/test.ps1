@@ -50,6 +50,9 @@ $AdapterExe = Join-Path $OutDir 'graphics_adapter_tests.exe'
 $AspectExe = Join-Path $OutDir 'aspect_ratio_tests.exe'
 $UpdateExe = Join-Path $OutDir 'update_tests.exe'
 $UpdaterExe = Join-Path $OutDir 'trg-updater.exe'
+# PowerShell before 7.3 drops the quotes of a native argument, so they are escaped there.
+$UpdaterExePath = $UpdaterExe -replace '\\', '/'
+$UpdaterExeDefine = if ($PSVersionTable.PSVersion -ge [version]'7.3') { '-DGW2_UPDATER_EXE="' + $UpdaterExePath + '"' } else { '-DGW2_UPDATER_EXE=\"' + $UpdaterExePath + '\"' }
 $UpdateHelperExe = Join-Path $OutDir 'update_helper_tests.exe'
 $ReleaseUpdater = Join-Path $Root 'build-release\trg-updater-clang64\trg-updater.exe'
 
@@ -169,7 +172,7 @@ try {
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
     # The helper test is also the program the helper restarts, which the helper starts without a console.
     & $ClangXX -std=c++23 -O1 -Wall -Wextra `
-        ('-DGW2_UPDATER_EXE="' + ($UpdaterExe -replace '\\', '/') + '"') `
+        $UpdaterExeDefine `
         (Join-Path $Root 'tests\update_helper_tests.cpp') `
         -lshell32 '-Wl,/subsystem:windows' '-Wl,/entry:mainCRTStartup' -o $UpdateHelperExe
     if ($LASTEXITCODE) { throw "Test build failed ($LASTEXITCODE)" }
